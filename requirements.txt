@@ -1,0 +1,21 @@
+# EEG Feature Extraction Dependencies
+
+# 核心依赖
+numpy>=1.20.0
+scipy>=1.7.0
+pandas>=1.3.0
+h5py>=3.0.0
+tqdm>=4.60.0
+PyWavelets>=1.1.0
+
+# aperiodic (1/f) 拟合
+fooof>=1.1.0
+
+# GPU 加速（可选，如果有 CUDA 环境）
+# 安装方式: pip install cupy-cuda11x（根据 CUDA 版本选择）
+# cupy-cuda11x>=10.0.0
+
+# 开发依赖（可选）
+# pytest>=6.0.0
+# black>=21.0.0
+# flake8>=3.9.0

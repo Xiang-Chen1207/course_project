@@ -1,0 +1,26 @@
+# EEG 特征选择配置文件示例
+#
+# 使用方法:
+#   python selective_feature_extraction.py -i data.h5 -o ./output --config feature_config.yaml
+
+# 选择特征组（可选）
+# 可用组: time_domain, frequency_domain, complexity, connectivity, network, composite
+groups:
+  - time_domain
+  - frequency_domain
+
+# 额外选择的单个特征（可选）
+# 这些特征会被添加到组选择之上
+features:
+  - wavelet_energy_entropy
+  - hurst_exponent
+  - mean_interchannel_correlation
+  - hemispheric_alpha_asymmetry
+  - cognitive_load_estimate
+  - alertness_estimate
+
+# 排除的特征（可选）
+# 这些特征会从最终列表中移除
+exclude:
+  - sample_entropy      # 计算非常耗时
+  - approx_entropy      # 计算非常耗时
