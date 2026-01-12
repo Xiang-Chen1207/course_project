@@ -552,7 +552,7 @@ def benchmark_network(eeg_data: np.ndarray, config: Config,
 
 def benchmark_composite(eeg_data: np.ndarray, psd_result,
                         config: Config, iterations: int = 10) -> List[BenchmarkResult]:
-    """测试综合特征"""
+    """测试综合特征（包含拆分后的认知负荷指标）"""
     from eeg_feature_extraction.features.composite import CompositeFeatures
 
     results = []
@@ -574,6 +574,126 @@ def benchmark_composite(eeg_data: np.ndarray, psd_result,
         min_time_ms=np.min(times),
         max_time_ms=np.max(times)
     ))
+
+    return results
+
+
+def benchmark_de_features(eeg_data: np.ndarray, psd_result,
+                          config: Config, iterations: int = 5) -> List[BenchmarkResult]:
+    """测试微分熵相关特征 (DE, DASM, RASM, DCAU, FAA)"""
+    from eeg_feature_extraction.features.de_features import DEFeatures
+
+    results = []
+    computer = DEFeatures(config)
+
+    # 测试整体
+    print("  测试全部 DE 特征（包括 DASM, RASM, DCAU, FAA）...")
+    times = []
+    for i in range(min(iterations, 3)):
+        start = time.perf_counter()
+        features = computer.compute(eeg_data, psd_result)
+        end = time.perf_counter()
+        times.append((end - start) * 1000)
+        print(f"    迭代 {i+1}: {times[-1]:.1f} ms")
+
+    results.append(BenchmarkResult(
+        feature_name="[all_de_features]",
+        category="de_features",
+        mean_time_ms=np.mean(times),
+        std_time_ms=np.std(times),
+        min_time_ms=np.min(times),
+        max_time_ms=np.max(times)
+    ))
+
+    return results
+
+
+def benchmark_plv(eeg_data: np.ndarray, config: Config,
+                  iterations: int = 3) -> List[BenchmarkResult]:
+    """测试 PLV（相位锁定值）特征"""
+    from eeg_feature_extraction.features.connectivity import compute_plv_matrix
+
+    results = []
+
+    # 测试单频段 PLV 计算
+    print("  测试 PLV 矩阵计算...")
+    bands = {
+        'theta': (4.0, 8.0),
+        'alpha': (8.0, 12.0),
+        'beta': (12.0, 30.0),
+        'gamma': (30.0, 80.0),
+    }
+
+    for band_name, band_range in bands.items():
+        times = []
+        for _ in range(iterations):
+            start = time.perf_counter()
+            _ = compute_plv_matrix(eeg_data, config.sampling_rate, band_range)
+            end = time.perf_counter()
+            times.append((end - start) * 1000)
+
+        results.append(BenchmarkResult(
+            feature_name=f"plv_matrix_{band_name}",
+            category="plv",
+            mean_time_ms=np.mean(times),
+            std_time_ms=np.std(times),
+            min_time_ms=np.min(times),
+            max_time_ms=np.max(times)
+        ))
+        print(f"    PLV {band_name}: {np.mean(times):.1f} ms")
+
+    return results
+
+
+def benchmark_fractal_dimensions(eeg_data: np.ndarray, config: Config,
+                                  iterations: int = 5) -> List[BenchmarkResult]:
+    """测试分形维数特征 (Higuchi, Katz, Petrosian)"""
+    from eeg_feature_extraction.features.complexity import (
+        _higuchi_fd_single, _katz_fd_single, _petrosian_fd_single
+    )
+
+    results = []
+
+    # 使用单通道测试单个分形维数算法
+    test_signal = eeg_data[0]
+
+    fd_funcs = {
+        'higuchi_fd (single_ch)': lambda: _higuchi_fd_single(test_signal, kmax=8),
+        'katz_fd (single_ch)': lambda: _katz_fd_single(test_signal),
+        'petrosian_fd (single_ch)': lambda: _petrosian_fd_single(test_signal),
+    }
+
+    for name, func in fd_funcs.items():
+        times = []
+        for _ in range(iterations):
+            start = time.perf_counter()
+            func()
+            end = time.perf_counter()
+            times.append((end - start) * 1000)
+
+        results.append(BenchmarkResult(
+            feature_name=name,
+            category="fractal_dimension",
+            mean_time_ms=np.mean(times),
+            std_time_ms=np.std(times),
+            min_time_ms=np.min(times),
+            max_time_ms=np.max(times)
+        ))
+
+    # 估算全部通道耗时
+    n_channels = eeg_data.shape[0]
+    for name in fd_funcs.keys():
+        per_ch_time = results[-1].mean_time_ms if 'petrosian' in name else \
+                      results[-2].mean_time_ms if 'katz' in name else \
+                      results[-3].mean_time_ms
+        results.append(BenchmarkResult(
+            feature_name=name.replace('single_ch', f'estimated_{n_channels}ch'),
+            category="fractal_dimension",
+            mean_time_ms=per_ch_time * n_channels,
+            std_time_ms=0,
+            min_time_ms=per_ch_time * n_channels,
+            max_time_ms=per_ch_time * n_channels
+        ))
 
     return results
 
@@ -630,7 +750,8 @@ def print_results(results: List[BenchmarkResult], segment_length: float,
 
     # 按类别分组
     categories = ['preprocessing', 'time_domain', 'frequency_domain',
-                  'complexity', 'connectivity', 'network', 'composite']
+                  'complexity', 'connectivity', 'network', 'composite',
+                  'de_features', 'fractal_dimension', 'plv']
     category_names = {
         'preprocessing': 'PSD 预处理',
         'time_domain': '时域特征',
@@ -638,7 +759,10 @@ def print_results(results: List[BenchmarkResult], segment_length: float,
         'complexity': '复杂度特征',
         'connectivity': '连接性特征',
         'network': '网络特征',
-        'composite': '综合特征'
+        'composite': '综合特征',
+        'de_features': '微分熵特征 (DE/DASM/RASM/DCAU/FAA)',
+        'fractal_dimension': '分形维数 (Higuchi/Katz/Petrosian)',
+        'plv': '相位锁定值 (PLV)',
     }
 
     total_time = 0.0
@@ -802,6 +926,18 @@ def run_benchmark_for_segments(config: Config, num_segments: int,
     print("\n" + "-" * 40)
     print("测试综合特征...")
     all_results.extend(benchmark_composite(eeg_data, psd_result, config, iterations))
+
+    print("\n" + "-" * 40)
+    print("测试 DE 特征（微分熵、DASM、RASM、DCAU、FAA）...")
+    all_results.extend(benchmark_de_features(eeg_data, psd_result, config, iterations))
+
+    print("\n" + "-" * 40)
+    print("测试分形维数特征...")
+    all_results.extend(benchmark_fractal_dimensions(eeg_data, config, iterations))
+
+    print("\n" + "-" * 40)
+    print("测试 PLV 特征...")
+    all_results.extend(benchmark_plv(eeg_data, config, iterations))
 
     return all_results, actual_num_segments
 

@@ -58,6 +58,7 @@ from eeg_feature_extraction.features import (
     ConnectivityFeatures,
     NetworkFeatures,
     CompositeFeatures,
+    DEFeatures,
 )
 
 
@@ -83,11 +84,15 @@ FEATURE_GROUPS = {
         'alpha_power',
         'beta_power',
         'gamma_power',
+        'low_gamma_power',
+        'high_gamma_power',
         'delta_relative_power',
         'theta_relative_power',
         'alpha_relative_power',
         'beta_relative_power',
         'gamma_relative_power',
+        'low_gamma_relative_power',
+        'high_gamma_relative_power',
         'peak_frequency',
         'spectral_entropy',
         'spectral_centroid',
@@ -103,6 +108,10 @@ FEATURE_GROUPS = {
         'sample_entropy',
         'approx_entropy',
         'hurst_exponent',
+        # 分形维数
+        'higuchi_fd',
+        'katz_fd',
+        'petrosian_fd',
     ],
     'connectivity': [
         'mean_interchannel_correlation',
@@ -111,6 +120,13 @@ FEATURE_GROUPS = {
         'alpha_beta_band_power_correlation',
         'hemispheric_alpha_asymmetry',
         'frontal_occipital_alpha_ratio',
+        # PLV特征
+        'plv_theta_mean',
+        'plv_alpha_mean',
+        'plv_beta_mean',
+        'plv_gamma_mean',
+        'plv_theta_interhemispheric',
+        'plv_alpha_interhemispheric',
     ],
     'network': [
         'network_clustering_coefficient',
@@ -119,9 +135,46 @@ FEATURE_GROUPS = {
         'network_small_world_index',
     ],
     'composite': [
+        # 认知负荷拆分特征
+        'theta_alpha_ratio',
+        'frontal_beta_ratio',
         'cognitive_load_estimate',
         'alertness_estimate',
         'relaxation_index',
+    ],
+    # 新增: 微分熵相关特征
+    'de_features': [
+        # 各频段微分熵
+        'de_delta',
+        'de_theta',
+        'de_alpha',
+        'de_beta',
+        'de_gamma',
+        'de_low_gamma',
+        'de_high_gamma',
+        # 差分不对称性 (DASM)
+        'dasm_delta',
+        'dasm_theta',
+        'dasm_alpha',
+        'dasm_beta',
+        'dasm_gamma',
+        # 有理不对称性 (RASM)
+        'rasm_delta',
+        'rasm_theta',
+        'rasm_alpha',
+        'rasm_beta',
+        'rasm_gamma',
+        # 差分尾部性 (DCAU)
+        'dcau_delta',
+        'dcau_theta',
+        'dcau_alpha',
+        'dcau_beta',
+        'dcau_gamma',
+        # 额叶Alpha不对称性 (FAA)
+        'faa_f3f4',
+        'faa_f7f8',
+        'faa_fp1fp2',
+        'faa_mean',
     ],
 }
 
@@ -134,18 +187,20 @@ for group, features in FEATURE_GROUPS.items():
 # 预设配置
 PRESETS = {
     'fast': {
-        'description': '快速模式 - 仅计算高效特征（排除熵、网络特征）',
-        'groups': ['time_domain', 'frequency_domain', 'composite','microstate'],
+        'description': '快速模式 - 仅计算高效特征（排除熵、网络、PLV特征）',
+        'groups': ['time_domain', 'frequency_domain', 'composite', 'microstate'],
         'exclude_features': [],
     },
     'standard': {
-        'description': '标准模式 - 排除最耗时的特征（sample_entropy、approx_entropy、network path length）',
-        'groups': ['time_domain', 'frequency_domain', 'complexity', 'connectivity', 'composite'],
-        'exclude_features': ['sample_entropy', 'approx_entropy'],
+        'description': '标准模式 - 排除最耗时的特征（sample_entropy、approx_entropy、PLV、network）',
+        'groups': ['time_domain', 'frequency_domain', 'complexity', 'connectivity', 'composite', 'de_features'],
+        'exclude_features': ['sample_entropy', 'approx_entropy',
+                             'plv_theta_mean', 'plv_alpha_mean', 'plv_beta_mean', 'plv_gamma_mean',
+                             'plv_theta_interhemispheric', 'plv_alpha_interhemispheric'],
     },
     'full': {
-        'description': '完整模式 - 计算所有44个特征',
-        'groups': ['time_domain', 'frequency_domain', 'complexity', 'connectivity', 'network', 'composite'],
+        'description': '完整模式 - 计算所有特征（包括DE、PLV、分形维数等）',
+        'groups': ['time_domain', 'frequency_domain', 'complexity', 'connectivity', 'network', 'composite', 'de_features'],
         'exclude_features': [],
     },
     'basic': {
@@ -153,14 +208,14 @@ PRESETS = {
         'groups': ['time_domain'],
         'include_features': [
             'delta_power', 'theta_power', 'alpha_power',
-            'beta_power', 'gamma_power',
+            'beta_power', 'gamma_power', 'low_gamma_power', 'high_gamma_power',
             'delta_relative_power', 'theta_relative_power', 'alpha_relative_power',
             'beta_relative_power', 'gamma_relative_power',
             'theta_beta_ratio', 'mean_total_power',
         ],
     },
     'emotion': {
-        'description': '情绪分析模式 - 常用于情绪识别的特征',
+        'description': '情绪分析模式 - 常用于情绪识别的特征（包括DE和FAA）',
         'groups': [],
         'include_features': [
             # 时域
@@ -174,10 +229,15 @@ PRESETS = {
             'hemispheric_alpha_asymmetry', 'frontal_occipital_alpha_ratio',
             # 综合
             'alertness_estimate', 'relaxation_index',
+            # DE特征
+            'de_alpha', 'de_beta', 'de_gamma',
+            'dasm_alpha', 'dasm_beta',
+            # FAA
+            'faa_f3f4', 'faa_f7f8', 'faa_mean',
         ],
     },
     'cognitive': {
-        'description': '认知负荷模式 - 用于认知负荷研究的特征',
+        'description': '认知负荷模式 - 用于认知负荷研究的特征（包括拆分后的认知负荷指标）',
         'groups': [],
         'include_features': [
             # 时域
@@ -188,11 +248,17 @@ PRESETS = {
             'theta_beta_ratio', 'spectral_entropy',
             # 复杂度
             'wavelet_energy_entropy', 'hurst_exponent',
+            'higuchi_fd', 'katz_fd',
             # 连接性
             'mean_alpha_coherence',
-            # 综合
-            'cognitive_load_estimate',
+            # 综合（拆分后的认知负荷指标）
+            'theta_alpha_ratio', 'frontal_beta_ratio', 'cognitive_load_estimate',
         ],
+    },
+    'de_only': {
+        'description': '仅DE特征模式 - 仅计算微分熵相关特征',
+        'groups': ['de_features'],
+        'exclude_features': [],
     },
 }
 

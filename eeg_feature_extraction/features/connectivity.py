@@ -1,10 +1,16 @@
 """
-连接性特征计算：通道间相关性、相干性、半球间连接
+连接性特征计算：通道间相关性、相干性、半球间连接、相位锁定值(PLV)
 
 优化：利用 psd_computer 的并行化 coherence 计算
+
+新增特征：
+- 相位锁定值 (PLV): 量化两个信号之间的相位同步程度
+  PLV = 1 表示完全相位同步
+  PLV = 0 表示完全随机相位关系
 """
 import numpy as np
-from typing import Dict, Optional, List
+from typing import Dict, Optional, List, Tuple
+from scipy.signal import butter, filtfilt, hilbert
 
 # 尝试导入 GPU 加速库
 try:
@@ -19,9 +25,123 @@ from ..psd_computer import PSDResult, PSDComputer
 from ..config import Config
 
 
+def _compute_plv_pair(phase1: np.ndarray, phase2: np.ndarray) -> float:
+    """
+    计算两个信号的相位锁定值
+
+    PLV = |mean(exp(i * (phase1 - phase2)))|
+
+    Args:
+        phase1: 信号1的瞬时相位
+        phase2: 信号2的瞬时相位
+
+    Returns:
+        PLV值，范围[0, 1]
+    """
+    phase_diff = phase1 - phase2
+    plv = np.abs(np.mean(np.exp(1j * phase_diff)))
+    return float(plv)
+
+
+def _bandpass_filter(signal: np.ndarray, fs: float,
+                     band: Tuple[float, float], order: int = 4) -> np.ndarray:
+    """
+    带通滤波
+
+    Args:
+        signal: 输入信号
+        fs: 采样率
+        band: 频段范围 (low, high)
+        order: 滤波器阶数
+
+    Returns:
+        滤波后的信号
+    """
+    nyq = fs / 2
+    low = band[0] / nyq
+    high = band[1] / nyq
+
+    # 确保频率在有效范围内
+    low = max(0.001, min(low, 0.999))
+    high = max(0.001, min(high, 0.999))
+
+    if low >= high:
+        return signal
+
+    try:
+        b, a = butter(order, [low, high], btype='band')
+        filtered = filtfilt(b, a, signal, axis=-1, padlen=min(len(signal) - 1, 3 * max(len(a), len(b))))
+        return filtered
+    except Exception:
+        return signal
+
+
+def _compute_instantaneous_phase(signal: np.ndarray) -> np.ndarray:
+    """
+    计算瞬时相位（通过Hilbert变换）
+
+    Args:
+        signal: 输入信号
+
+    Returns:
+        瞬时相位数组
+    """
+    analytic = hilbert(signal)
+    return np.angle(analytic)
+
+
+def compute_plv_matrix(eeg_data: np.ndarray, fs: float,
+                       freq_band: Tuple[float, float],
+                       filter_order: int = 4) -> np.ndarray:
+    """
+    计算多通道EEG的PLV连接矩阵
+
+    Args:
+        eeg_data: EEG数据, shape: (n_channels, n_timepoints)
+        fs: 采样率
+        freq_band: 频段范围
+        filter_order: 滤波器阶数
+
+    Returns:
+        PLV矩阵, shape: (n_channels, n_channels)，对称矩阵
+    """
+    n_channels = eeg_data.shape[0]
+
+    # 对所有通道进行带通滤波
+    filtered_data = np.zeros_like(eeg_data)
+    for ch in range(n_channels):
+        filtered_data[ch] = _bandpass_filter(eeg_data[ch], fs, freq_band, filter_order)
+
+    # 计算所有通道的瞬时相位
+    phases = np.zeros_like(filtered_data)
+    for ch in range(n_channels):
+        phases[ch] = _compute_instantaneous_phase(filtered_data[ch])
+
+    # 计算PLV矩阵
+    plv_matrix = np.zeros((n_channels, n_channels))
+    for i in range(n_channels):
+        plv_matrix[i, i] = 1.0  # 对角线为1
+        for j in range(i + 1, n_channels):
+            plv = _compute_plv_pair(phases[i], phases[j])
+            plv_matrix[i, j] = plv
+            plv_matrix[j, i] = plv  # 对称
+
+    return plv_matrix
+
+
 @FeatureRegistry.register('connectivity')
 class ConnectivityFeatures(BaseFeature):
-    """连接性特征计算"""
+    """连接性特征计算
+
+    包含：
+    - 通道间相关性
+    - Alpha频段相干性
+    - 半球间连接强度
+    - 频带间功率相关性
+    - 半球Alpha不对称性
+    - 前后脑区功率梯度
+    - 相位锁定值 (PLV) - 各频段
+    """
 
     feature_names = [
         'mean_interchannel_correlation',
@@ -30,6 +150,13 @@ class ConnectivityFeatures(BaseFeature):
         'alpha_beta_band_power_correlation',
         'hemispheric_alpha_asymmetry',
         'frontal_occipital_alpha_ratio',
+        # PLV特征
+        'plv_theta_mean',
+        'plv_alpha_mean',
+        'plv_beta_mean',
+        'plv_gamma_mean',
+        'plv_theta_interhemispheric',
+        'plv_alpha_interhemispheric',
     ]
 
     def __init__(self, config: Config):
@@ -102,7 +229,78 @@ class ConnectivityFeatures(BaseFeature):
         else:
             features['frontal_occipital_alpha_ratio'] = 0.0
 
+        # 7-12. PLV特征
+        plv_features = self._compute_plv_features(eeg_data)
+        features.update(plv_features)
+
         return features
+
+    def _compute_plv_features(self, eeg_data: np.ndarray) -> Dict[str, float]:
+        """
+        计算相位锁定值(PLV)特征
+
+        Args:
+            eeg_data: EEG数据
+
+        Returns:
+            PLV特征字典
+        """
+        features = {}
+        freq_bands = self.config.freq_bands
+
+        # 定义要计算PLV的频段
+        bands = {
+            'theta': freq_bands.theta,
+            'alpha': freq_bands.alpha,
+            'beta': freq_bands.beta,
+            'gamma': freq_bands.gamma,
+        }
+
+        # 计算各频段的全脑平均PLV
+        for band_name, band_range in bands.items():
+            try:
+                plv_matrix = compute_plv_matrix(eeg_data, self.fs, band_range)
+                # 提取上三角（不包括对角线）
+                upper_tri = plv_matrix[np.triu_indices_from(plv_matrix, k=1)]
+                mean_plv = np.nanmean(upper_tri) if upper_tri.size else 0.0
+                features[f'plv_{band_name}_mean'] = float(mean_plv)
+            except Exception:
+                features[f'plv_{band_name}_mean'] = 0.0
+
+        # 计算半球间PLV（theta和alpha）
+        for band_name in ['theta', 'alpha']:
+            try:
+                plv_matrix = compute_plv_matrix(eeg_data, self.fs, bands[band_name])
+                inter_plv = self._compute_interhemispheric_plv(plv_matrix)
+                features[f'plv_{band_name}_interhemispheric'] = float(inter_plv)
+            except Exception:
+                features[f'plv_{band_name}_interhemispheric'] = 0.0
+
+        return features
+
+    def _compute_interhemispheric_plv(self, plv_matrix: np.ndarray) -> float:
+        """
+        计算半球间平均PLV
+
+        Args:
+            plv_matrix: PLV矩阵
+
+        Returns:
+            半球间平均PLV
+        """
+        left_indices = self._get_channel_indices(self.channel_groups.left_hemisphere)
+        right_indices = self._get_channel_indices(self.channel_groups.right_hemisphere)
+
+        if not left_indices or not right_indices:
+            return 0.0
+
+        plv_values = []
+        for l_idx in left_indices:
+            for r_idx in right_indices:
+                if l_idx < plv_matrix.shape[0] and r_idx < plv_matrix.shape[1]:
+                    plv_values.append(plv_matrix[l_idx, r_idx])
+
+        return float(np.mean(plv_values)) if plv_values else 0.0
 
     def _get_channel_indices(self, channel_list: List[str]) -> List[int]:
         """获取通道列表对应的索引"""
