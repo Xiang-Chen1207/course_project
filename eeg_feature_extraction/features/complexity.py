@@ -188,15 +188,154 @@ def _hurst_rs_optimized(signal: np.ndarray) -> float:
         return 0.5
 
 
+def _higuchi_fd_single(signal: np.ndarray, kmax: int = 8) -> float:
+    """
+    计算单通道的Higuchi分形维数
+
+    Higuchi算法量化EEG信号的自相似性和复杂度：
+    - 高FD：信号复杂、不规则（正常清醒状态、认知负荷）
+    - 低FD：信号规则、周期性（癫痫发作、深度睡眠、昏迷）
+
+    Args:
+        signal: 1D信号
+        kmax: 最大时间间隔（推荐8-20）
+
+    Returns:
+        Higuchi分形维数，正常EEG约1.4-1.7
+    """
+    N = len(signal)
+    if N < kmax * 4:
+        return 1.5  # 默认值
+
+    L = []
+    x = np.arange(1, kmax + 1)
+
+    for k in range(1, kmax + 1):
+        Lk = []
+        for m in range(1, k + 1):
+            # 构建子序列索引
+            indices = np.arange(m - 1, N, k)
+            if len(indices) < 2:
+                continue
+
+            Lmk = 0
+            for i in range(1, len(indices)):
+                Lmk += abs(signal[indices[i]] - signal[indices[i - 1]])
+
+            num_segments = len(indices) - 1
+            if num_segments > 0:
+                # 归一化因子
+                norm_factor = (N - 1) / (num_segments * k)
+                Lmk = (Lmk / k) * norm_factor
+                Lk.append(Lmk)
+
+        if Lk:
+            L.append(np.mean(Lk))
+
+    if len(L) < 2:
+        return 1.5
+
+    # 线性回归: log(L(k)) vs log(k)
+    log_k = np.log(x[:len(L)])
+    log_L = np.log(np.array(L) + 1e-15)
+
+    try:
+        coeffs = np.polyfit(log_k, log_L, 1)
+        fd = -coeffs[0]
+        return float(fd) if np.isfinite(fd) and 1.0 <= fd <= 2.0 else 1.5
+    except (np.linalg.LinAlgError, ValueError):
+        return 1.5
+
+
+def _katz_fd_single(signal: np.ndarray) -> float:
+    """
+    计算单通道的Katz分形维数
+
+    Katz算法基于曲线长度和最大距离的比值
+
+    Args:
+        signal: 1D信号
+
+    Returns:
+        Katz分形维数，通常在1-2之间
+    """
+    N = len(signal)
+    if N < 3:
+        return 1.0
+
+    # 计算曲线总长度L（假设采样间隔归一化为1）
+    diffs = np.abs(np.diff(signal))
+    L = np.sum(np.sqrt(1 + diffs ** 2))
+
+    # 计算最大距离d（从第一个点到最远点的欧氏距离）
+    indices = np.arange(N)
+    distances = np.sqrt(indices ** 2 + (signal - signal[0]) ** 2)
+    d = np.max(distances)
+
+    if L < 1e-10 or d < 1e-10:
+        return 1.0
+
+    # Katz公式
+    fd = np.log10(N - 1) / (np.log10(N - 1) + np.log10(d / L))
+
+    return float(fd) if np.isfinite(fd) and 0.5 <= fd <= 2.0 else 1.0
+
+
+def _petrosian_fd_single(signal: np.ndarray) -> float:
+    """
+    计算单通道的Petrosian分形维数
+
+    基于信号符号变化次数，计算效率高
+
+    Args:
+        signal: 1D信号
+
+    Returns:
+        Petrosian分形维数
+    """
+    N = len(signal)
+    if N < 3:
+        return 1.0
+
+    # 计算一阶差分
+    diff = np.diff(signal)
+
+    # 计算符号变化次数（过零点）
+    sign_changes = np.sum(diff[:-1] * diff[1:] < 0)
+    N_delta = sign_changes
+
+    if N_delta == 0:
+        return 1.0
+
+    # Petrosian公式
+    fd = np.log10(N) / (np.log10(N) + np.log10(N / (N + 0.4 * N_delta)))
+
+    return float(fd) if np.isfinite(fd) else 1.0
+
+
 @FeatureRegistry.register('complexity')
 class ComplexityFeatures(BaseFeature):
-    """复杂度特征计算"""
+    """复杂度特征计算
+
+    包含：
+    - 小波能量熵 (wavelet_energy_entropy)
+    - 样本熵 (sample_entropy)
+    - 近似熵 (approx_entropy)
+    - Hurst指数 (hurst_exponent)
+    - Higuchi分形维数 (higuchi_fd)
+    - Katz分形维数 (katz_fd)
+    - Petrosian分形维数 (petrosian_fd)
+    """
 
     feature_names = [
         'wavelet_energy_entropy',
         'sample_entropy',
         'approx_entropy',
         'hurst_exponent',
+        # 分形维数
+        'higuchi_fd',
+        'katz_fd',
+        'petrosian_fd',
     ]
 
     def __init__(self, config: Config):
@@ -267,7 +406,60 @@ class ComplexityFeatures(BaseFeature):
             'hurst_exponent': float(np.mean(hurst_values)) if hurst_values else 0.5,
         }
 
+        # 计算分形维数特征（对所有通道取平均）
+        fd_features = self._compute_fractal_dimensions(eeg_data)
+        features.update(fd_features)
+
         return features
+
+    def _compute_fractal_dimensions(self, eeg_data: np.ndarray) -> Dict[str, float]:
+        """
+        计算三种分形维数特征
+
+        Args:
+            eeg_data: EEG数据, shape: (n_channels, n_timepoints)
+
+        Returns:
+            分形维数特征字典
+        """
+        n_channels = eeg_data.shape[0]
+
+        higuchi_values = []
+        katz_values = []
+        petrosian_values = []
+
+        for ch in range(n_channels):
+            ch_data = eeg_data[ch]
+
+            # Higuchi FD
+            try:
+                hfd = _higuchi_fd_single(ch_data, kmax=8)
+                if np.isfinite(hfd):
+                    higuchi_values.append(hfd)
+            except Exception:
+                pass
+
+            # Katz FD
+            try:
+                kfd = _katz_fd_single(ch_data)
+                if np.isfinite(kfd):
+                    katz_values.append(kfd)
+            except Exception:
+                pass
+
+            # Petrosian FD
+            try:
+                pfd = _petrosian_fd_single(ch_data)
+                if np.isfinite(pfd):
+                    petrosian_values.append(pfd)
+            except Exception:
+                pass
+
+        return {
+            'higuchi_fd': float(np.mean(higuchi_values)) if higuchi_values else 1.5,
+            'katz_fd': float(np.mean(katz_values)) if katz_values else 1.0,
+            'petrosian_fd': float(np.mean(petrosian_values)) if petrosian_values else 1.0,
+        }
 
     def _compute_wavelet_entropy(self, eeg_data: np.ndarray) -> float:
         """

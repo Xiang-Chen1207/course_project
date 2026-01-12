@@ -213,19 +213,43 @@ class ElectrodeRegistry:
 
 @dataclass
 class FrequencyBands:
-    """频段定义"""
+    """频段定义
+
+    标准频段范围:
+    - delta: 0.5-4 Hz (慢波，与深度睡眠、疲劳相关)
+    - theta: 4-8 Hz (与记忆、注意力、情绪相关)
+    - alpha: 8-12 Hz (与放松、觉醒状态相关)
+    - beta: 12-30 Hz (与警觉、焦虑、认知活动相关)
+    - low_gamma: 30-50 Hz (与感知、认知处理相关)
+    - high_gamma: 50-80 Hz (与高级认知功能相关)
+    - gamma (完整): 30-80 Hz (用于计算二级特征)
+    """
     delta: Tuple[float, float] = (0.5, 4.0)
     theta: Tuple[float, float] = (4.0, 8.0)
-    alpha: Tuple[float, float] = (8.0, 13.0)
-    beta: Tuple[float, float] = (13.0, 30.0)
-    gamma: Tuple[float, float] = (30.0, 100.0)
+    alpha: Tuple[float, float] = (8.0, 12.0)
+    beta: Tuple[float, float] = (12.0, 30.0)
+    low_gamma: Tuple[float, float] = (30.0, 50.0)
+    high_gamma: Tuple[float, float] = (50.0, 80.0)
+    gamma: Tuple[float, float] = (30.0, 80.0)  # 完整gamma频段，用于二级特征计算
 
     # 扩展频段
     low_freq: Tuple[float, float] = (1.0, 8.0)
-    high_freq: Tuple[float, float] = (13.0, 40.0)
+    high_freq: Tuple[float, float] = (12.0, 40.0)
 
     def get_all_bands(self) -> Dict[str, Tuple[float, float]]:
-        """获取所有频段"""
+        """获取所有主要频段（用于PSD功率计算）"""
+        return {
+            'delta': self.delta,
+            'theta': self.theta,
+            'alpha': self.alpha,
+            'beta': self.beta,
+            'low_gamma': self.low_gamma,
+            'high_gamma': self.high_gamma,
+            'gamma': self.gamma,
+        }
+
+    def get_primary_bands(self) -> Dict[str, Tuple[float, float]]:
+        """获取五个主要频段（不包括细分的gamma）"""
         return {
             'delta': self.delta,
             'theta': self.theta,

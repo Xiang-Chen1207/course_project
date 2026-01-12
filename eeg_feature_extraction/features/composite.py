@@ -1,5 +1,14 @@
 """
 综合特征计算：认知负荷、清醒度、放松/紧张状态等
+
+特征说明：
+- theta_alpha_ratio: 全脑 θ/α 比率，反映认知负荷和注意力状态
+  高值表示高认知负荷（更多theta活动相对于alpha）
+- frontal_beta_ratio: 前额beta与全脑beta的比值
+  高值表示前额区域高度活跃，与认知加工和执行功能相关
+- cognitive_load_estimate: 综合认知负荷估计（结合上述两个指标）
+- alertness_estimate: 清醒度估计（基于Alpha/Delta比率）
+- relaxation_index: 放松指数（Alpha与Beta的相对比例）
 """
 import numpy as np
 from typing import Dict, Optional, List
@@ -11,9 +20,19 @@ from ..config import Config
 
 @FeatureRegistry.register('composite')
 class CompositeFeatures(BaseFeature):
-    """综合特征计算"""
+    """综合特征计算
+
+    认知负荷相关特征已拆分为独立的指标：
+    - theta_alpha_ratio: 全脑θ/α比率
+    - frontal_beta_ratio: 前额beta与全脑beta的比值
+    - cognitive_load_estimate: 综合认知负荷估计
+    """
 
     feature_names = [
+        # 认知负荷拆分特征
+        'theta_alpha_ratio',
+        'frontal_beta_ratio',
+        # 综合指标
         'cognitive_load_estimate',
         'alertness_estimate',
         'relaxation_index',
@@ -43,15 +62,20 @@ class CompositeFeatures(BaseFeature):
 
         features = {}
 
-        # 1. 认知负荷水平估计
-        cognitive_load = self._compute_cognitive_load(psd_result)
+        # 1. 计算认知负荷相关特征（拆分为独立指标）
+        theta_alpha_ratio, frontal_beta_ratio = self._compute_cognitive_load_components(psd_result)
+        features['theta_alpha_ratio'] = float(theta_alpha_ratio)
+        features['frontal_beta_ratio'] = float(frontal_beta_ratio)
+
+        # 2. 综合认知负荷估计（使用拆分后的特征计算）
+        cognitive_load = self._compute_cognitive_load(theta_alpha_ratio, frontal_beta_ratio)
         features['cognitive_load_estimate'] = float(cognitive_load)
 
-        # 2. 清醒度水平估计
+        # 3. 清醒度水平估计
         alertness = self._compute_alertness(psd_result)
         features['alertness_estimate'] = float(alertness)
 
-        # 3. 放松 vs 紧张状态判别
+        # 4. 放松 vs 紧张状态判别
         relaxation = self._compute_relaxation_index(psd_result)
         features['relaxation_index'] = float(relaxation)
 
@@ -65,37 +89,54 @@ class CompositeFeatures(BaseFeature):
                 indices.append(self.channel_names.index(ch))
         return indices
 
-    def _compute_cognitive_load(self, psd_result: PSDResult) -> float:
+    def _compute_cognitive_load_components(self, psd_result: PSDResult) -> tuple:
         """
-        计算认知负荷水平
+        计算认知负荷的两个组成成分
 
-        基于 Theta/Alpha 比率和前额 Beta 活动
-
-        公式: cognitive_load = sigmoid(w1 * theta_alpha_ratio + w2 * frontal_beta)
-        归一化到 0-1 范围
+        Returns:
+            tuple: (theta_alpha_ratio, frontal_beta_ratio)
+            - theta_alpha_ratio: 全脑 θ/α 比率
+            - frontal_beta_ratio: 前额beta与全脑beta的比值
         """
         theta_power = psd_result.band_power.get('theta', np.zeros(self.config.n_channels))
         alpha_power = psd_result.band_power.get('alpha', np.zeros(self.config.n_channels))
         beta_power = psd_result.band_power.get('beta', np.zeros(self.config.n_channels))
 
-        # 计算全脑 Theta/Alpha 比率
+        # 1. 计算全脑 Theta/Alpha 比率
         total_alpha = np.sum(alpha_power)
         total_theta = np.sum(theta_power)
         theta_alpha_ratio = total_theta / total_alpha if total_alpha > 1e-10 else 0
 
-        # 计算前额 Beta 功率
+        # 2. 计算前额 Beta 与全脑 Beta 的比值
         frontal_indices = self._get_channel_indices(self.channel_groups.frontal)
         if frontal_indices:
             frontal_beta = np.mean(beta_power[frontal_indices])
-            # 归一化前额 Beta
             total_beta = np.mean(beta_power)
-            frontal_beta_norm = frontal_beta / total_beta if total_beta > 1e-10 else 0
+            frontal_beta_ratio = frontal_beta / total_beta if total_beta > 1e-10 else 1.0
         else:
-            frontal_beta_norm = 0
+            frontal_beta_ratio = 1.0
 
+        return theta_alpha_ratio, frontal_beta_ratio
+
+    def _compute_cognitive_load(self, theta_alpha_ratio: float,
+                                 frontal_beta_ratio: float) -> float:
+        """
+        计算综合认知负荷水平
+
+        基于 Theta/Alpha 比率和前额 Beta 活动的综合评估
+
+        Args:
+            theta_alpha_ratio: 全脑θ/α比率
+            frontal_beta_ratio: 前额beta与全脑beta的比值
+
+        Returns:
+            认知负荷估计值 (0-1范围)
+
+        公式: cognitive_load = sigmoid(w1 * theta_alpha_ratio + w2 * frontal_beta_ratio)
+        """
         # 综合计算（简化模型）
-        # 高 Theta/Alpha 和高前额 Beta 表示高认知负荷
-        raw_score = 0.6 * theta_alpha_ratio + 0.4 * frontal_beta_norm
+        # 高 Theta/Alpha 和高前额 Beta 比值表示高认知负荷
+        raw_score = 0.6 * theta_alpha_ratio + 0.4 * frontal_beta_ratio
 
         # Sigmoid 归一化到 0-1
         # 调整参数使得典型值落在 0-1 范围内

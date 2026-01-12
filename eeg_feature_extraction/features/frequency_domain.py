@@ -29,7 +29,17 @@ except Exception:  # pragma: no cover
 
 @FeatureRegistry.register('frequency_domain')
 class FrequencyDomainFeatures(BaseFeature):
-    """频域特征计算"""
+    """频域特征计算
+
+    频段范围:
+    - delta: 0.5-4 Hz
+    - theta: 4-8 Hz
+    - alpha: 8-12 Hz
+    - beta: 12-30 Hz
+    - low_gamma: 30-50 Hz
+    - high_gamma: 50-80 Hz
+    - gamma (完整): 30-80 Hz
+    """
 
     feature_names = [
         'delta_power',
@@ -37,11 +47,15 @@ class FrequencyDomainFeatures(BaseFeature):
         'alpha_power',
         'beta_power',
         'gamma_power',
+        'low_gamma_power',
+        'high_gamma_power',
         'delta_relative_power',
         'theta_relative_power',
         'alpha_relative_power',
         'beta_relative_power',
         'gamma_relative_power',
+        'low_gamma_relative_power',
+        'high_gamma_relative_power',
         'peak_frequency',
         'spectral_entropy',
         'spectral_centroid',
@@ -82,13 +96,14 @@ class FrequencyDomainFeatures(BaseFeature):
         band_power = psd_result.band_power
         total_power = psd_result.total_power
 
-        # 1-5. 各频段绝对功率（全通道平均）
-        for band_name in ['delta', 'theta', 'alpha', 'beta', 'gamma']:
+        # 1-7. 各频段绝对功率（全通道平均）
+        all_bands = ['delta', 'theta', 'alpha', 'beta', 'gamma', 'low_gamma', 'high_gamma']
+        for band_name in all_bands:
             power = band_power.get(band_name, np.zeros(self.config.n_channels))
             features[f'{band_name}_power'] = float(np.mean(power))
 
-        # 6-10. 各频段相对功率
-        for band_name in ['delta', 'theta', 'alpha', 'beta', 'gamma']:
+        # 8-14. 各频段相对功率
+        for band_name in all_bands:
             power = band_power.get(band_name, np.zeros(self.config.n_channels))
             # 使用平滑分母，保留低功率下的比例
             rel_power = power / (total_power + 1e-15)
