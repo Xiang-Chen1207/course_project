@@ -33,6 +33,7 @@ import argparse
 import numpy as np
 from typing import Dict, List, Tuple, Optional
 from dataclasses import dataclass
+import signal
 
 # 添加项目路径
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -51,6 +52,23 @@ class BenchmarkResult:
     std_time_ms: float
     min_time_ms: float
     max_time_ms: float
+
+
+# ====================
+# 工具：单特征超时保护
+# ====================
+def _run_with_timeout(fn, timeout_sec: int, *args, **kwargs):
+    """在给定超时时间内运行函数，超时抛 TimeoutError。"""
+    def _handler(signum, frame):
+        raise TimeoutError("feature benchmark timed out")
+
+    old_handler = signal.signal(signal.SIGALRM, _handler)
+    signal.alarm(timeout_sec)
+    try:
+        return fn(*args, **kwargs)
+    finally:
+        signal.alarm(0)
+        signal.signal(signal.SIGALRM, old_handler)
 
 
 def generate_synthetic_eeg(config: Config, num_segments: int = 1) -> np.ndarray:
@@ -190,20 +208,36 @@ def benchmark_time_domain(eeg_data: np.ndarray, config: Config,
 
     for name, func in feature_funcs.items():
         times = []
+        timed_out = False
         for _ in range(iterations):
-            start = time.perf_counter()
-            _ = func()
-            end = time.perf_counter()
-            times.append((end - start) * 1000)
+            try:
+                start = time.perf_counter()
+                _run_with_timeout(func, 30)
+                end = time.perf_counter()
+                times.append((end - start) * 1000)
+            except TimeoutError:
+                timed_out = True
+                print(f"  [跳过] {name} 超过30s，已跳过后续迭代")
+                break
 
-        results.append(BenchmarkResult(
-            feature_name=name,
-            category="time_domain",
-            mean_time_ms=np.mean(times),
-            std_time_ms=np.std(times),
-            min_time_ms=np.min(times),
-            max_time_ms=np.max(times)
-        ))
+        if times:
+            results.append(BenchmarkResult(
+                feature_name=name,
+                category="time_domain",
+                mean_time_ms=np.mean(times),
+                std_time_ms=np.std(times),
+                min_time_ms=np.min(times),
+                max_time_ms=np.max(times)
+            ))
+        elif timed_out:
+            results.append(BenchmarkResult(
+                feature_name=name,
+                category="time_domain",
+                mean_time_ms=float('nan'),
+                std_time_ms=float('nan'),
+                min_time_ms=float('nan'),
+                max_time_ms=float('nan')
+            ))
 
     return results
 
@@ -248,20 +282,36 @@ def benchmark_frequency_domain(eeg_data: np.ndarray, psd_result,
         if func() is None:
             continue
         times = []
+        timed_out = False
         for _ in range(iterations):
-            start = time.perf_counter()
-            _ = func()
-            end = time.perf_counter()
-            times.append((end - start) * 1000)
+            try:
+                start = time.perf_counter()
+                _run_with_timeout(func, 30)
+                end = time.perf_counter()
+                times.append((end - start) * 1000)
+            except TimeoutError:
+                timed_out = True
+                print(f"  [跳过] {name} 超过30s，已跳过后续迭代")
+                break
 
-        results.append(BenchmarkResult(
-            feature_name=name,
-            category="frequency_domain",
-            mean_time_ms=np.mean(times),
-            std_time_ms=np.std(times),
-            min_time_ms=np.min(times),
-            max_time_ms=np.max(times)
-        ))
+        if times:
+            results.append(BenchmarkResult(
+                feature_name=name,
+                category="frequency_domain",
+                mean_time_ms=np.mean(times),
+                std_time_ms=np.std(times),
+                min_time_ms=np.min(times),
+                max_time_ms=np.max(times)
+            ))
+        elif timed_out:
+            results.append(BenchmarkResult(
+                feature_name=name,
+                category="frequency_domain",
+                mean_time_ms=float('nan'),
+                std_time_ms=float('nan'),
+                min_time_ms=float('nan'),
+                max_time_ms=float('nan')
+            ))
 
     return results
 
@@ -279,28 +329,44 @@ def benchmark_complexity(eeg_data: np.ndarray, config: Config,
 
     # 测试各个子功能（单独测试以精确计时）
     feature_funcs = {
-        'wavelet_energy_entropy': (lambda: computer._compute_wavelet_entropy(eeg_data), eeg_data),
-        'sample_entropy (3ch)': (lambda: computer._compute_sample_entropy(test_data_single), test_data_single),
-        'approx_entropy (3ch)': (lambda: computer._compute_approx_entropy(test_data_single), test_data_single),
-        'hurst_exponent': (lambda: computer._compute_hurst_exponent(eeg_data), eeg_data),
+        'wavelet_energy_entropy': lambda: computer._compute_wavelet_entropy(eeg_data),
+        'sample_entropy (3ch)': lambda: computer._compute_sample_entropy(test_data_single),
+        'approx_entropy (3ch)': lambda: computer._compute_approx_entropy(test_data_single),
+        'hurst_exponent': lambda: computer._compute_hurst_exponent(eeg_data),
     }
 
-    for name, (func, _) in feature_funcs.items():
+    for name, func in feature_funcs.items():
         times = []
+        timed_out = False
         for _ in range(iterations):
-            start = time.perf_counter()
-            _ = func()
-            end = time.perf_counter()
-            times.append((end - start) * 1000)
+            try:
+                start = time.perf_counter()
+                _run_with_timeout(func, 30)
+                end = time.perf_counter()
+                times.append((end - start) * 1000)
+            except TimeoutError:
+                timed_out = True
+                print(f"  [跳过] {name} 超过30s，已跳过后续迭代")
+                break
 
-        results.append(BenchmarkResult(
-            feature_name=name,
-            category="complexity",
-            mean_time_ms=np.mean(times),
-            std_time_ms=np.std(times),
-            min_time_ms=np.min(times),
-            max_time_ms=np.max(times)
-        ))
+        if times:
+            results.append(BenchmarkResult(
+                feature_name=name,
+                category="complexity",
+                mean_time_ms=np.mean(times),
+                std_time_ms=np.std(times),
+                min_time_ms=np.min(times),
+                max_time_ms=np.max(times)
+            ))
+        elif timed_out:
+            results.append(BenchmarkResult(
+                feature_name=name,
+                category="complexity",
+                mean_time_ms=float('nan'),
+                std_time_ms=float('nan'),
+                min_time_ms=float('nan'),
+                max_time_ms=float('nan')
+            ))
 
     # 估算全部62通道的耗时
     sample_entropy_per_ch = results[1].mean_time_ms / 3  # sample_entropy per-channel
@@ -450,20 +516,36 @@ def benchmark_network(eeg_data: np.ndarray, config: Config,
 
     for name, func in feature_funcs.items():
         times = []
+        timed_out = False
         for _ in range(iterations):
-            start = time.perf_counter()
-            _ = func()
-            end = time.perf_counter()
-            times.append((end - start) * 1000)
+            try:
+                start = time.perf_counter()
+                _run_with_timeout(func, 30)
+                end = time.perf_counter()
+                times.append((end - start) * 1000)
+            except TimeoutError:
+                timed_out = True
+                print(f"  [跳过] {name} 超过30s，已跳过后续迭代")
+                break
 
-        results.append(BenchmarkResult(
-            feature_name=name,
-            category="network",
-            mean_time_ms=np.mean(times),
-            std_time_ms=np.std(times),
-            min_time_ms=np.min(times),
-            max_time_ms=np.max(times)
-        ))
+        if times:
+            results.append(BenchmarkResult(
+                feature_name=name,
+                category="network",
+                mean_time_ms=np.mean(times),
+                std_time_ms=np.std(times),
+                min_time_ms=np.min(times),
+                max_time_ms=np.max(times)
+            ))
+        elif timed_out:
+            results.append(BenchmarkResult(
+                feature_name=name,
+                category="network",
+                mean_time_ms=float('nan'),
+                std_time_ms=float('nan'),
+                min_time_ms=float('nan'),
+                max_time_ms=float('nan')
+            ))
 
     return results
 

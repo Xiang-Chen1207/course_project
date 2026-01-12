@@ -211,6 +211,8 @@ def _process_merged_segment_task(args: Tuple) -> Tuple[str, Optional[Dict[str, A
 class MergedSegmentExtractor:
     """合并 Segment 的特征提取器，支持多CPU并行处理"""
 
+    FEATURE_TIMEOUT_SEC = 30  # 单个特征组计算超时时间
+
     def __init__(self, config: Optional[Config] = None,
                  selection_config: Optional[FeatureSelectionConfig] = None,
                  merge_count: int = 2,
@@ -297,13 +299,13 @@ class MergedSegmentExtractor:
             try:
                 if group_name == 'microstate':
                     group_features = self._run_with_timeout(
-                        computer.compute, 60,
+                        computer.compute, self.FEATURE_TIMEOUT_SEC,
                         eeg_data, psd_result=psd_result,
                         microstate_analyzer=microstate_analyzer
                     )
                 else:
                     group_features = self._run_with_timeout(
-                        computer.compute, 60,
+                        computer.compute, self.FEATURE_TIMEOUT_SEC,
                         eeg_data, psd_result=psd_result
                     )
                 # 只保留选定的特征
