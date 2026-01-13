@@ -218,7 +218,8 @@ class MergedSegmentExtractor:
                  selection_config: Optional[FeatureSelectionConfig] = None,
                  merge_count: int = 2,
                  cross_trial: bool = False,
-                 n_jobs: Optional[int] = None):
+                 n_jobs: Optional[int] = None,
+                 microstate_segments_per_trial: Optional[int] = None):
         """
         初始化
 
@@ -228,12 +229,16 @@ class MergedSegmentExtractor:
             merge_count: 合并的 segment 数量
             cross_trial: 是否跨 trial 合并
             n_jobs: 并行进程数，None 表示自动选择
+            microstate_segments_per_trial: 每个 trial 用于生成微状态模板的 segment 数量
+                - None 或 0: 使用所有 segments（默认行为）
+                - >0: 每个 trial 随机选择指定数量的 segments
         """
         self.config = config or Config()
         self.selection_config = selection_config or FeatureSelectionConfig()
         self.merge_count = merge_count
         self.cross_trial = cross_trial
         self.n_jobs = n_jobs if n_jobs is not None else _get_optimal_n_jobs()
+        self.microstate_segments_per_trial = microstate_segments_per_trial
 
         # PSD 计算器
         self.psd_computer = PSDComputer(
@@ -394,33 +399,65 @@ class MergedSegmentExtractor:
         return merged_segments
 
     def _compute_microstate_template(self, loader: EEGDataLoader, verbose: bool = True) -> MicrostateAnalyzer:
-        """从该被试的所有原始 segment 生成微状态模板（使用 GFP 峰值地形图节省内存）。"""
+        """从该被试的 segments 生成微状态模板（使用 GFP 峰值地形图节省内存）。
+
+        支持两种模式：
+        1. 使用所有 segments（microstate_segments_per_trial=None 或 0）
+        2. 每个 trial 随机选择指定数量的 segments（microstate_segments_per_trial > 0）
+        """
+        segments_per_trial = self.microstate_segments_per_trial
+
         if verbose:
-            print("正在生成 microstate 模板（subject 级）...")
+            if segments_per_trial and segments_per_trial > 0:
+                print(f"正在生成 microstate 模板（每个 trial 随机选择 {segments_per_trial} 个 segments）...")
+            else:
+                print("正在生成 microstate 模板（使用所有 segments）...")
 
         analyzer = MicrostateAnalyzer(n_states=4)
         all_peak_maps: List[np.ndarray] = []
-        n_segments = 0
+        n_segments_used = 0
+        n_segments_total = 0
         n_peak_maps = 0
+        n_trials = 0
 
-        for _, _, segment in loader.iter_segments():
-            data = segment.eeg_data
-            gfp = analyzer.compute_gfp(data)
-            peak_indices = analyzer.find_gfp_peaks(gfp)
-            peak_maps = data[:, peak_indices].T  # (n_peaks, n_channels)
-            if peak_maps.size > 0:
-                all_peak_maps.append(peak_maps)
-                n_peak_maps += peak_maps.shape[0]
-            n_segments += 1
+        # 按 trial 组织 segments
+        trial_names = loader.get_trial_names()
 
-        if n_segments == 0 or n_peak_maps == 0:
+        for trial_name in trial_names:
+            segment_names = loader.get_segment_names(trial_name)
+            n_trials += 1
+            n_segments_total += len(segment_names)
+
+            # 决定使用哪些 segments
+            if segments_per_trial and segments_per_trial > 0 and len(segment_names) > segments_per_trial:
+                # 随机选择指定数量的 segments
+                rng = np.random.default_rng(seed=42 + n_trials)  # 可重复的随机选择
+                selected_indices = rng.choice(len(segment_names), size=segments_per_trial, replace=False)
+                selected_segment_names = [segment_names[i] for i in sorted(selected_indices)]
+            else:
+                # 使用所有 segments
+                selected_segment_names = segment_names
+
+            for seg_name in selected_segment_names:
+                segment = loader.get_segment(trial_name, seg_name)
+                data = segment.eeg_data
+                gfp = analyzer.compute_gfp(data)
+                peak_indices = analyzer.find_gfp_peaks(gfp)
+                peak_maps = data[:, peak_indices].T  # (n_peaks, n_channels)
+                if peak_maps.size > 0:
+                    all_peak_maps.append(peak_maps)
+                    n_peak_maps += peak_maps.shape[0]
+                n_segments_used += 1
+
+        if n_segments_used == 0 or n_peak_maps == 0:
             raise ValueError("没有有效的 segment 峰值地形图用于微状态模板生成")
 
         combined_maps = np.vstack(all_peak_maps)
         analyzer.centroids = analyzer._polarity_invariant_kmeans(combined_maps)
 
         if verbose:
-            print(f"  微状态模板生成完成：segments={n_segments}, peak_maps={n_peak_maps}")
+            print(f"  微状态模板生成完成：trials={n_trials}, "
+                  f"segments_used={n_segments_used}/{n_segments_total}, peak_maps={n_peak_maps}")
 
         return analyzer
 
@@ -760,6 +797,12 @@ def main():
 
   # 禁用并行处理
   python merged_segment_extraction.py -i data.h5 -o ./output --merge-count 2 --no-parallel
+
+  # 微状态模板：每个trial随机选择5个segments生成模板
+  python merged_segment_extraction.py -i data.h5 -o ./output --merge-count 1 --preset full --microstate-segs 5
+
+  # 完整示例：使用full预设，每个trial选3个segment生成微状态模板
+  python merged_segment_extraction.py -i /path/to/dataset -o ./output --merge-count 1 --preset full --microstate-segs 3
         """
     )
 
@@ -789,6 +832,11 @@ def main():
                         help='并行进程数（默认：自动选择）')
     parser.add_argument('--no-parallel', action='store_true',
                         help='禁用并行处理（使用串行模式）')
+
+    # 微状态选项
+    parser.add_argument('--microstate-segs', type=int, default=None,
+                        dest='microstate_segments_per_trial',
+                        help='每个 trial 用于生成微状态模板的 segment 数量（默认: 使用所有 segments）')
 
     # 其他选项
     parser.add_argument('--no-gpu', action='store_true', help='禁用 GPU')
@@ -846,6 +894,10 @@ def main():
         print(f"合并数量: {args.merge_count}")
         print(f"合并模式: {'跨 Trial' if args.cross_trial else 'Trial 内'}")
         print(f"并行: {'启用' if use_parallel else '禁用'}")
+        if args.microstate_segments_per_trial:
+            print(f"微状态模板: 每个 trial 随机选择 {args.microstate_segments_per_trial} 个 segments")
+        else:
+            print("微状态模板: 使用所有 segments")
         print("-" * 60)
 
     all_results = []
@@ -864,7 +916,8 @@ def main():
             selection_config=selection_config,
             merge_count=args.merge_count,
             cross_trial=args.cross_trial,
-            n_jobs=args.n_jobs
+            n_jobs=args.n_jobs,
+            microstate_segments_per_trial=args.microstate_segments_per_trial
         )
 
         # 每个输入文件单独创建子输出目录
