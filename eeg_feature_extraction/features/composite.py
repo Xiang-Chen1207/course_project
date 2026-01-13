@@ -64,25 +64,24 @@ class CompositeFeatures(BaseFeature):
 
         # 1. 计算认知负荷相关特征（拆分为独立指标）
         theta_alpha_ratio, frontal_beta_ratio = self._compute_cognitive_load_components(psd_result)
-        if theta_alpha_ratio is not None:
-            features['theta_alpha_ratio'] = float(theta_alpha_ratio)
-        if frontal_beta_ratio is not None:
-            features['frontal_beta_ratio'] = float(frontal_beta_ratio)
+        # 即使为None也要写入，确保CSV列一致
+        features['theta_alpha_ratio'] = theta_alpha_ratio
+        features['frontal_beta_ratio'] = frontal_beta_ratio
 
         # 2. 综合认知负荷估计（使用拆分后的特征计算）
         cognitive_load = self._compute_cognitive_load(theta_alpha_ratio, frontal_beta_ratio)
-        if cognitive_load is not None:
-            features['cognitive_load_estimate'] = float(cognitive_load)
+        # 即使为None也要写入，确保CSV列一致
+        features['cognitive_load_estimate'] = cognitive_load
 
         # 3. 清醒度水平估计
         alertness = self._compute_alertness(psd_result)
-        if alertness is not None:
-            features['alertness_estimate'] = float(alertness)
+        # 即使为None也要写入，确保CSV列一致
+        features['alertness_estimate'] = alertness
 
         # 4. 放松 vs 紧张状态判别
         relaxation = self._compute_relaxation_index(psd_result)
-        if relaxation is not None:
-            features['relaxation_index'] = float(relaxation)
+        # 即使为None也要写入，确保CSV列一致
+        features['relaxation_index'] = relaxation
 
         return features
 
@@ -196,16 +195,18 @@ class CompositeFeatures(BaseFeature):
             return None
 
         relaxation = total_alpha / total
-        if 0.01 <= relaxation <= 100:
-            return float(np.clip(relaxation, 0, 1))
-        return None
+        if not np.isfinite(relaxation):
+            return None
+        # relaxation 理论上在 [0, 1] 范围内，裁剪以确保有效
+        return float(np.clip(relaxation, 0, 1))
 
     @staticmethod
     def _safe_ratio(numerator: float, denominator: float) -> Optional[float]:
-        """返回位于[0.01, 100]的比值，否则为None"""
+        """返回比值，裁剪到[0.01, 100]范围内，分母无效时返回None"""
         if denominator <= 0:
             return None
         val = numerator / denominator
-        if np.isfinite(val) and 0.01 <= val <= 100:
-            return float(val)
-        return None
+        if not np.isfinite(val):
+            return None
+        # 裁剪到有效范围 [0.01, 100]
+        return float(np.clip(val, 0.01, 100))
