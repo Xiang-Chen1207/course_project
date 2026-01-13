@@ -44,7 +44,7 @@ def _compute_plv_pair(phase1: np.ndarray, phase2: np.ndarray) -> float:
 
 
 def _bandpass_filter(signal: np.ndarray, fs: float,
-                     band: Tuple[float, float], order: int = 4) -> np.ndarray:
+                     band: Tuple[float, float], order: int = 4) -> Optional[np.ndarray]:
     """
     带通滤波
 
@@ -55,7 +55,7 @@ def _bandpass_filter(signal: np.ndarray, fs: float,
         order: 滤波器阶数
 
     Returns:
-        滤波后的信号
+        滤波后的信号，失败时返回 None
     """
     nyq = fs / 2
     low = band[0] / nyq
@@ -66,14 +66,14 @@ def _bandpass_filter(signal: np.ndarray, fs: float,
     high = max(0.001, min(high, 0.999))
 
     if low >= high:
-        return signal
+        return None
 
     try:
         b, a = butter(order, [low, high], btype='band')
         filtered = filtfilt(b, a, signal, axis=-1, padlen=min(len(signal) - 1, 3 * max(len(a), len(b))))
         return filtered
     except Exception:
-        return signal
+        return None
 
 
 def _compute_instantaneous_phase(signal: np.ndarray) -> np.ndarray:
@@ -92,9 +92,9 @@ def _compute_instantaneous_phase(signal: np.ndarray) -> np.ndarray:
 
 def compute_plv_matrix(eeg_data: np.ndarray, fs: float,
                        freq_band: Tuple[float, float],
-                       filter_order: int = 4) -> np.ndarray:
+                       filter_order: int = 4) -> Optional[np.ndarray]:
     """
-    计算多通道EEG的PLV连接矩阵
+    计算多通道EEG的PLV连接矩阵（向量化优化版本）
 
     Args:
         eeg_data: EEG数据, shape: (n_channels, n_timepoints)
@@ -103,28 +103,49 @@ def compute_plv_matrix(eeg_data: np.ndarray, fs: float,
         filter_order: 滤波器阶数
 
     Returns:
-        PLV矩阵, shape: (n_channels, n_channels)，对称矩阵
+        PLV矩阵, shape: (n_channels, n_channels)，对称矩阵；滤波失败返回 None
     """
     n_channels = eeg_data.shape[0]
 
-    # 对所有通道进行带通滤波
-    filtered_data = np.zeros_like(eeg_data)
+    # 对所有通道进行带通滤波（向量化）
+    filtered_data = []
+    valid_channels = []
     for ch in range(n_channels):
-        filtered_data[ch] = _bandpass_filter(eeg_data[ch], fs, freq_band, filter_order)
+        filtered = _bandpass_filter(eeg_data[ch], fs, freq_band, filter_order)
+        if filtered is not None:
+            filtered_data.append(filtered)
+            valid_channels.append(ch)
 
-    # 计算所有通道的瞬时相位
-    phases = np.zeros_like(filtered_data)
-    for ch in range(n_channels):
-        phases[ch] = _compute_instantaneous_phase(filtered_data[ch])
+    # 如果滤波全部失败，返回 None
+    if len(filtered_data) < 2:
+        return None
 
-    # 计算PLV矩阵
-    plv_matrix = np.zeros((n_channels, n_channels))
-    for i in range(n_channels):
-        plv_matrix[i, i] = 1.0  # 对角线为1
-        for j in range(i + 1, n_channels):
-            plv = _compute_plv_pair(phases[i], phases[j])
-            plv_matrix[i, j] = plv
-            plv_matrix[j, i] = plv  # 对称
+    filtered_data = np.array(filtered_data)
+
+    # 向量化计算所有通道的瞬时相位（Hilbert 变换支持批量处理）
+    analytic = hilbert(filtered_data, axis=1)
+    phases = np.angle(analytic)  # shape: (n_valid_channels, n_timepoints)
+
+    n_valid = len(valid_channels)
+
+    # 向量化计算 PLV 矩阵
+    # PLV_ij = |mean(exp(i * (phase_i - phase_j)))|
+    # 使用广播和向量化计算
+
+    # 计算相位差矩阵：phases[:, None, :] - phases[None, :, :]
+    # shape: (n_valid, n_valid, n_timepoints)
+    phase_diff = phases[:, np.newaxis, :] - phases[np.newaxis, :, :]
+
+    # 计算复指数的平均值
+    # exp(i * phase_diff) 并沿时间轴取平均
+    plv_valid = np.abs(np.mean(np.exp(1j * phase_diff), axis=2))
+
+    # 构建完整的 PLV 矩阵（包含所有原始通道）
+    plv_matrix = np.eye(n_channels)  # 对角线为 1
+    for i_idx, i_ch in enumerate(valid_channels):
+        for j_idx, j_ch in enumerate(valid_channels):
+            if i_ch != j_ch:
+                plv_matrix[i_ch, j_ch] = plv_valid[i_idx, j_idx]
 
     return plv_matrix
 
@@ -256,25 +277,41 @@ class ConnectivityFeatures(BaseFeature):
             'gamma': freq_bands.gamma,
         }
 
+        # 缓存计算过的 PLV 矩阵（避免重复计算）
+        plv_cache = {}
+
         # 计算各频段的全脑平均PLV
         for band_name, band_range in bands.items():
             try:
                 plv_matrix = compute_plv_matrix(eeg_data, self.fs, band_range)
+                if plv_matrix is None:
+                    features[f'plv_{band_name}_mean'] = None
+                    continue
+                plv_cache[band_name] = plv_matrix
                 # 提取上三角（不包括对角线）
                 upper_tri = plv_matrix[np.triu_indices_from(plv_matrix, k=1)]
-                mean_plv = np.nanmean(upper_tri) if upper_tri.size else 0.0
-                features[f'plv_{band_name}_mean'] = float(mean_plv)
+                mean_plv = np.nanmean(upper_tri) if upper_tri.size else None
+                features[f'plv_{band_name}_mean'] = float(mean_plv) if mean_plv is not None else None
             except Exception:
-                features[f'plv_{band_name}_mean'] = 0.0
+                features[f'plv_{band_name}_mean'] = None
 
         # 计算半球间PLV（theta和alpha）
         for band_name in ['theta', 'alpha']:
             try:
-                plv_matrix = compute_plv_matrix(eeg_data, self.fs, bands[band_name])
+                # 使用缓存的 PLV 矩阵
+                if band_name in plv_cache:
+                    plv_matrix = plv_cache[band_name]
+                else:
+                    plv_matrix = compute_plv_matrix(eeg_data, self.fs, bands[band_name])
+
+                if plv_matrix is None:
+                    features[f'plv_{band_name}_interhemispheric'] = None
+                    continue
+
                 inter_plv = self._compute_interhemispheric_plv(plv_matrix)
-                features[f'plv_{band_name}_interhemispheric'] = float(inter_plv)
+                features[f'plv_{band_name}_interhemispheric'] = float(inter_plv) if inter_plv else None
             except Exception:
-                features[f'plv_{band_name}_interhemispheric'] = 0.0
+                features[f'plv_{band_name}_interhemispheric'] = None
 
         return features
 
@@ -421,10 +458,11 @@ class ConnectivityFeatures(BaseFeature):
 
     @staticmethod
     def _safe_ratio(numerator: float, denominator: float) -> Optional[float]:
-        """返回位于[0.01, 100]的比值，否则为None"""
+        """返回比值，如果不在有效范围 [0.01, 100] 则返回 None"""
         if denominator <= 0:
             return None
         val = numerator / denominator
         if np.isfinite(val) and 0.01 <= val <= 100:
             return float(val)
+        # 超出范围返回 None
         return None

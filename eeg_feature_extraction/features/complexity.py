@@ -143,18 +143,22 @@ def _approx_entropy_single_optimized(signal: np.ndarray, m: int, r: float) -> fl
     return phi_m - phi_m1
 
 
-def _hurst_rs_optimized(signal: np.ndarray) -> float:
-    """优化的 Hurst 指数计算"""
+def _hurst_rs_optimized(signal: np.ndarray) -> Optional[float]:
+    """优化的 Hurst 指数计算
+
+    Returns:
+        Hurst 指数（可以 > 1），失败时返回 None
+    """
     N = len(signal)
     if N < 20:
-        return 0.5
+        return None
 
     max_k = int(np.log2(N)) - 1
     n_values = [int(2 ** k) for k in range(4, max_k + 1)]
     n_values = [n for n in n_values if n >= 8 and N // n >= 2]
 
     if len(n_values) < 2:
-        return 0.5
+        return None
 
     rs_values = []
 
@@ -176,19 +180,23 @@ def _hurst_rs_optimized(signal: np.ndarray) -> float:
             rs_values.append((n, np.mean(rs_list)))
 
     if len(rs_values) < 2:
-        return 0.5
+        return None
 
     log_n = np.log([v[0] for v in rs_values])
     log_rs = np.log([v[1] for v in rs_values])
 
     try:
         coeffs = np.polyfit(log_n, log_rs, 1)
-        return coeffs[0]
+        h = coeffs[0]
+        # 接受 H > 0 的所有值（包括 H > 1）
+        if np.isfinite(h) and h > 0:
+            return float(h)
+        return None
     except np.linalg.LinAlgError:
-        return 0.5
+        return None
 
 
-def _higuchi_fd_single(signal: np.ndarray, kmax: int = 8) -> float:
+def _higuchi_fd_single(signal: np.ndarray, kmax: int = 8) -> Optional[float]:
     """
     计算单通道的Higuchi分形维数
 
@@ -201,11 +209,11 @@ def _higuchi_fd_single(signal: np.ndarray, kmax: int = 8) -> float:
         kmax: 最大时间间隔（推荐8-20）
 
     Returns:
-        Higuchi分形维数，正常EEG约1.4-1.7
+        Higuchi分形维数，失败时返回 None
     """
     N = len(signal)
     if N < kmax * 4:
-        return 1.5  # 默认值
+        return None
 
     L = []
     x = np.arange(1, kmax + 1)
@@ -233,7 +241,7 @@ def _higuchi_fd_single(signal: np.ndarray, kmax: int = 8) -> float:
             L.append(np.mean(Lk))
 
     if len(L) < 2:
-        return 1.5
+        return None
 
     # 线性回归: log(L(k)) vs log(k)
     log_k = np.log(x[:len(L)])
@@ -242,12 +250,14 @@ def _higuchi_fd_single(signal: np.ndarray, kmax: int = 8) -> float:
     try:
         coeffs = np.polyfit(log_k, log_L, 1)
         fd = -coeffs[0]
-        return float(fd) if np.isfinite(fd) and 1.0 <= fd <= 2.0 else 1.5
+        if np.isfinite(fd) and 1.0 <= fd <= 2.0:
+            return float(fd)
+        return None
     except (np.linalg.LinAlgError, ValueError):
-        return 1.5
+        return None
 
 
-def _katz_fd_single(signal: np.ndarray) -> float:
+def _katz_fd_single(signal: np.ndarray) -> Optional[float]:
     """
     计算单通道的Katz分形维数
 
@@ -257,11 +267,11 @@ def _katz_fd_single(signal: np.ndarray) -> float:
         signal: 1D信号
 
     Returns:
-        Katz分形维数，通常在1-2之间
+        Katz分形维数，失败时返回 None
     """
     N = len(signal)
     if N < 3:
-        return 1.0
+        return None
 
     # 计算曲线总长度L（假设采样间隔归一化为1）
     diffs = np.abs(np.diff(signal))
@@ -273,15 +283,17 @@ def _katz_fd_single(signal: np.ndarray) -> float:
     d = np.max(distances)
 
     if L < 1e-10 or d < 1e-10:
-        return 1.0
+        return None
 
     # Katz公式
     fd = np.log10(N - 1) / (np.log10(N - 1) + np.log10(d / L))
 
-    return float(fd) if np.isfinite(fd) and 0.5 <= fd <= 2.0 else 1.0
+    if np.isfinite(fd) and 0.5 <= fd <= 2.0:
+        return float(fd)
+    return None
 
 
-def _petrosian_fd_single(signal: np.ndarray) -> float:
+def _petrosian_fd_single(signal: np.ndarray) -> Optional[float]:
     """
     计算单通道的Petrosian分形维数
 
@@ -291,11 +303,11 @@ def _petrosian_fd_single(signal: np.ndarray) -> float:
         signal: 1D信号
 
     Returns:
-        Petrosian分形维数
+        Petrosian分形维数，失败时返回 None
     """
     N = len(signal)
     if N < 3:
-        return 1.0
+        return None
 
     # 计算一阶差分
     diff = np.diff(signal)
@@ -305,12 +317,14 @@ def _petrosian_fd_single(signal: np.ndarray) -> float:
     N_delta = sign_changes
 
     if N_delta == 0:
-        return 1.0
+        return None
 
     # Petrosian公式
     fd = np.log10(N) / (np.log10(N) + np.log10(N / (N + 0.4 * N_delta)))
 
-    return float(fd) if np.isfinite(fd) else 1.0
+    if np.isfinite(fd):
+        return float(fd)
+    return None
 
 
 @FeatureRegistry.register('complexity')
@@ -396,14 +410,15 @@ class ComplexityFeatures(BaseFeature):
                 sample_entropies.append(result['sample_entropy'])
             if result['approx_entropy'] is not None and np.isfinite(result['approx_entropy']):
                 approx_entropies.append(result['approx_entropy'])
-            if result['hurst'] is not None and np.isfinite(result['hurst']) and 0 < result['hurst'] < 1:
+            # Hurst 指数接受 H > 0（包括 H > 1）
+            if result['hurst'] is not None and np.isfinite(result['hurst']) and result['hurst'] > 0:
                 hurst_values.append(result['hurst'])
 
         features = {
-            'wavelet_energy_entropy': float(np.mean(wavelet_entropies)) if wavelet_entropies else 0.0,
-            'sample_entropy': float(np.mean(sample_entropies)) if sample_entropies else 0.0,
-            'approx_entropy': float(np.mean(approx_entropies)) if approx_entropies else 0.0,
-            'hurst_exponent': float(np.mean(hurst_values)) if hurst_values else 0.5,
+            'wavelet_energy_entropy': float(np.mean(wavelet_entropies)) if wavelet_entropies else None,
+            'sample_entropy': float(np.mean(sample_entropies)) if sample_entropies else None,
+            'approx_entropy': float(np.mean(approx_entropies)) if approx_entropies else None,
+            'hurst_exponent': float(np.mean(hurst_values)) if hurst_values else None,
         }
 
         # 计算分形维数特征（对所有通道取平均）
@@ -456,9 +471,9 @@ class ComplexityFeatures(BaseFeature):
                 pass
 
         return {
-            'higuchi_fd': float(np.mean(higuchi_values)) if higuchi_values else 1.5,
-            'katz_fd': float(np.mean(katz_values)) if katz_values else 1.0,
-            'petrosian_fd': float(np.mean(petrosian_values)) if petrosian_values else 1.0,
+            'higuchi_fd': float(np.mean(higuchi_values)) if higuchi_values else None,
+            'katz_fd': float(np.mean(katz_values)) if katz_values else None,
+            'petrosian_fd': float(np.mean(petrosian_values)) if petrosian_values else None,
         }
 
     def _compute_wavelet_entropy(self, eeg_data: np.ndarray) -> float:

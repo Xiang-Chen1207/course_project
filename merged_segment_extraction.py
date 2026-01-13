@@ -35,9 +35,8 @@ from dataclasses import dataclass, field
 from tqdm import tqdm
 import warnings
 import traceback
-from concurrent.futures import ProcessPoolExecutor, as_completed
+from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed, TimeoutError as FuturesTimeoutError
 import multiprocessing as mp
-import signal
 
 # 添加项目路径
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -250,20 +249,20 @@ class MergedSegmentExtractor:
         self._initialize_computers()
 
     # ====================
-    # 工具：特征计算超时保护
+    # 工具：特征计算超时保护（跨平台实现）
     # ====================
     def _run_with_timeout(self, fn, timeout_sec: int, *args, **kwargs):
-        """在给定超时时间内运行函数，超时则抛出 TimeoutError."""
-        def _handler(signum, frame):
-            raise TimeoutError("feature computation timed out")
+        """在给定超时时间内运行函数，超时则抛出 TimeoutError。
 
-        old_handler = signal.signal(signal.SIGALRM, _handler)
-        signal.alarm(timeout_sec)
-        try:
-            return fn(*args, **kwargs)
-        finally:
-            signal.alarm(0)
-            signal.signal(signal.SIGALRM, old_handler)
+        使用 ThreadPoolExecutor 实现跨平台超时机制，
+        适用于 Windows/Linux/macOS。
+        """
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            future = executor.submit(fn, *args, **kwargs)
+            try:
+                return future.result(timeout=timeout_sec)
+            except FuturesTimeoutError:
+                raise TimeoutError("feature computation timed out")
 
     def _initialize_computers(self):
         """初始化需要的特征计算器"""

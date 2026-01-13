@@ -368,7 +368,7 @@ class MicrostateAnalyzer:
 
     def backfit(self, data: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
         """
-        Backfitting: 将每个时间点分配到一个微状态
+        Backfitting: 将每个时间点分配到一个微状态（向量化优化版本）
 
         Args:
             data: EEG 数据, shape: (n_channels, n_samples)
@@ -381,22 +381,33 @@ class MicrostateAnalyzer:
             raise ValueError("模型尚未拟合，请先调用 fit() 或 fit_from_segments()")
 
         n_channels, n_samples = data.shape
-        labels = np.zeros(n_samples, dtype=int)
-        correlations = np.zeros(n_samples)
 
-        for t in range(n_samples):
-            current_map = data[:, t]
-            best_corr = -1
-            best_label = 0
+        # 向量化计算：对数据和中心进行中心化和归一化
+        # data shape: (n_channels, n_samples)
+        # centroids shape: (n_states, n_channels)
 
-            for k in range(self.n_states):
-                corr = abs(self._spatial_correlation(current_map, self.centroids[k]))
-                if corr > best_corr:
-                    best_corr = corr
-                    best_label = k
+        # 中心化数据（沿通道轴）
+        data_centered = data - data.mean(axis=0, keepdims=True)  # (n_channels, n_samples)
+        data_norm = np.linalg.norm(data_centered, axis=0, keepdims=True)  # (1, n_samples)
+        data_norm = np.maximum(data_norm, 1e-10)  # 避免除零
+        data_normalized = data_centered / data_norm  # (n_channels, n_samples)
 
-            labels[t] = best_label
-            correlations[t] = best_corr
+        # 中心化和归一化中心
+        centroids_centered = self.centroids - self.centroids.mean(axis=1, keepdims=True)  # (n_states, n_channels)
+        centroids_norm = np.linalg.norm(centroids_centered, axis=1, keepdims=True)  # (n_states, 1)
+        centroids_norm = np.maximum(centroids_norm, 1e-10)
+        centroids_normalized = centroids_centered / centroids_norm  # (n_states, n_channels)
+
+        # 向量化计算所有相关性
+        # correlations shape: (n_states, n_samples)
+        all_correlations = centroids_normalized @ data_normalized
+
+        # 取绝对值（极性不变）
+        abs_correlations = np.abs(all_correlations)
+
+        # 找到每个时间点的最大相关性及其对应的微状态
+        labels = np.argmax(abs_correlations, axis=0)  # (n_samples,)
+        correlations = np.max(abs_correlations, axis=0)  # (n_samples,)
 
         return labels, correlations
 
@@ -519,9 +530,10 @@ class MicrostateFeatures(BaseFeature):
     注意：微状态特征需要从整个 subject 的所有 segment 生成模板，
     然后对每个 segment 进行 backfitting。
 
-    支持两种模式：
-    1. 有预计算模板：通过 kwargs 传入 'microstate_analyzer' 对象
-    2. 无预计算模板：从当前 segment 生成模板（降级模式）
+    支持三种模式：
+    1. 有预计算模板：通过 kwargs 传入 'microstate_analyzer' 对象（推荐）
+    2. 提供额外 segments：通过 kwargs 传入 'additional_segments' 列表（降级模式增强）
+    3. 单 segment：仅从当前 segment 生成模板（降级模式，不推荐）
     """
 
     feature_names = [
@@ -564,7 +576,9 @@ class MicrostateFeatures(BaseFeature):
             eeg_data: EEG 数据, shape: (n_channels, n_timepoints)
             psd_result: PSD 结果（微状态特征不需要）
             **kwargs: 其他参数
-                - microstate_analyzer: 预计算的 MicrostateAnalyzer 对象（可选）
+                - microstate_analyzer: 预计算的 MicrostateAnalyzer 对象（推荐）
+                - additional_segments: 额外的 segments 列表，用于降级模式的模板生成
+                  格式: List[np.ndarray]，每个数组 shape: (n_channels, n_timepoints)
 
         Returns:
             微状态特征字典
@@ -575,20 +589,33 @@ class MicrostateFeatures(BaseFeature):
         analyzer = kwargs.get('microstate_analyzer')
 
         if analyzer is None:
-            # 降级模式：从当前 segment 生成模板
-            warnings.warn(
-                "未提供预计算的微状态模板，将从当前 segment 生成模板。"
-                "建议在 subject 级别预计算模板以获得更稳定的结果。"
-            )
-            analyzer = MicrostateAnalyzer(n_states=self.n_states)
-            analyzer.fit(eeg_data)
+            # 降级模式：尝试从多个 segments 生成模板
+            additional_segments = kwargs.get('additional_segments', [])
+
+            if additional_segments:
+                # 使用当前 segment 和额外 segments 生成模板
+                all_segments = [eeg_data] + list(additional_segments)
+                warnings.warn(
+                    f"未提供预计算的微状态模板，将从 {len(all_segments)} 个 segments 生成模板。"
+                    "建议在 subject 级别预计算模板以获得更稳定的结果。"
+                )
+                analyzer = MicrostateAnalyzer(n_states=self.n_states)
+                analyzer.fit_from_segments(all_segments)
+            else:
+                # 仅从当前 segment 生成模板（不推荐）
+                warnings.warn(
+                    "未提供预计算的微状态模板或额外 segments，将仅从当前 segment 生成模板。"
+                    "这可能导致不稳定的结果。强烈建议在 subject 级别预计算模板。"
+                )
+                analyzer = MicrostateAnalyzer(n_states=self.n_states)
+                analyzer.fit(eeg_data)
 
         # 提取特征
         try:
             features = analyzer.extract_features(eeg_data, self.fs)
         except Exception as e:
             warnings.warn(f"微状态特征提取失败: {e}")
-            # 返回 NaN 值
-            features = {name: np.nan for name in self.feature_names}
+            # 返回 None 值
+            features = {name: None for name in self.feature_names}
 
         return features
