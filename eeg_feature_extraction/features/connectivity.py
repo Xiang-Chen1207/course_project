@@ -416,6 +416,15 @@ class ConnectivityFeatures(BaseFeature):
         frontal_power = np.mean(alpha_power[frontal_indices])
         occipital_power = np.mean(alpha_power[occipital_indices])
 
-        if occipital_power > 1e-10:
-            return frontal_power / occipital_power
-        return 0.0
+        ratio = self._safe_ratio(frontal_power, occipital_power)
+        return ratio if ratio is not None else 0.0
+
+    @staticmethod
+    def _safe_ratio(numerator: float, denominator: float) -> Optional[float]:
+        """返回位于[0.01, 100]的比值，否则为None"""
+        if denominator <= 0:
+            return None
+        val = numerator / denominator
+        if np.isfinite(val) and 0.01 <= val <= 100:
+            return float(val)
+        return None

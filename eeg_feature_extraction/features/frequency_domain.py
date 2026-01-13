@@ -105,9 +105,9 @@ class FrequencyDomainFeatures(BaseFeature):
         # 8-14. 各频段相对功率
         for band_name in all_bands:
             power = band_power.get(band_name, np.zeros(self.config.n_channels))
-            # 使用平滑分母，保留低功率下的比例
-            rel_power = power / (total_power + 1e-15)
-            features[f'{band_name}_relative_power'] = float(np.mean(rel_power))
+            rel_power = self._safe_ratio_array(power, total_power)
+            if rel_power is not None:
+                features[f'{band_name}_relative_power'] = float(rel_power)
 
         # 11. 主频率峰值
         peak_freq = self._compute_peak_frequency(psd_result.freqs, psd_result.psd)
@@ -130,17 +130,20 @@ class FrequencyDomainFeatures(BaseFeature):
         # 15. Theta-Beta比率
         theta_power = np.mean(band_power.get('theta', np.zeros(1)))
         beta_power = np.mean(band_power.get('beta', np.zeros(1)))
-        tbr = theta_power / (beta_power + 1e-15)
-        features['theta_beta_ratio'] = float(tbr)
+        tbr = self._safe_ratio(theta_power, beta_power)
+        if tbr is not None:
+            features['theta_beta_ratio'] = float(tbr)
 
         # 16. Delta-Theta比率
         delta_power = np.mean(band_power.get('delta', np.zeros(1)))
-        dtr = delta_power / (theta_power + 1e-15)
-        features['delta_theta_ratio'] = float(dtr)
+        dtr = self._safe_ratio(delta_power, theta_power)
+        if dtr is not None:
+            features['delta_theta_ratio'] = float(dtr)
 
         # 17. 低频vs高频能量比
         low_high_ratio = self._compute_low_high_ratio(psd_result)
-        features['low_high_power_ratio'] = float(low_high_ratio)
+        if low_high_ratio is not None:
+            features['low_high_power_ratio'] = float(low_high_ratio)
 
         # 18. 非周期性指数（1/f 斜率）
         aperiodic_exp = self._compute_aperiodic_exponent(
@@ -225,12 +228,32 @@ class FrequencyDomainFeatures(BaseFeature):
         if np.any(low_mask) and np.any(high_mask):
             low_power = trapezoid(psd[:, low_mask], dx=freq_resolution, axis=1)
             high_power = trapezoid(psd[:, high_mask], dx=freq_resolution, axis=1)
+            ratio = self._safe_ratio_array(low_power, high_power)
+            return ratio
 
-            with np.errstate(divide='ignore', invalid='ignore'):
-                ratios = low_power / (high_power + 1e-15)
-            return np.mean(ratios)
+        return None
 
-        return 0.0
+    @staticmethod
+    def _safe_ratio(numerator: float, denominator: float) -> Optional[float]:
+        """返回位于[0.01, 100]的比值，否则返回None"""
+        if denominator <= 0:
+            return None
+        val = numerator / denominator
+        if np.isfinite(val) and 0.01 <= val <= 100:
+            return float(val)
+        return None
+
+    def _safe_ratio_array(self, numerator: np.ndarray, denominator: np.ndarray) -> Optional[float]:
+        """对向量比值做有效性检查，返回均值或None"""
+        valid_mask = denominator > 0
+        if not np.any(valid_mask):
+            return None
+        ratios = numerator[valid_mask] / denominator[valid_mask]
+        ratios = ratios[np.isfinite(ratios)]
+        ratios = ratios[(ratios >= 0.01) & (ratios <= 100)]
+        if ratios.size == 0:
+            return None
+        return float(np.mean(ratios))
 
     def _compute_aperiodic_exponent(self, freqs: np.ndarray, psd: np.ndarray) -> float:
         """

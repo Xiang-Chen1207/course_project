@@ -14,10 +14,10 @@ EEG 特征计算性能基准测试脚本
 
 示例：
     # 使用真实数据测试单个 segment
-    python benchmark_features.py --data-path /path/to/subject.h5
+    python benchmark_features.py --data-path /mnt/dataset2/hdf5_datasets/SleepEDF/sub_2.h5
 
     # 使用真实数据测试 5 个 segment 合并
-    python benchmark_features.py --data-path /mnt/dataset2/hdf5_datasets/SEED/sub_1.h5 --num-segments 15
+    python benchmark_features.py --data-path /mnt/dataset2/hdf5_datasets/SEED/sub_2.h5 --num-segments 1
 
     # 使用真实数据测试不同 segment 数量的性能对比
     python benchmark_features.py --data-path /path/to/subject.h5 --num-segments 1,2,5,10
@@ -41,6 +41,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from eeg_feature_extraction.config import Config
 from eeg_feature_extraction.psd_computer import PSDComputer
 from eeg_feature_extraction.data_loader import EEGDataLoader
+from selective_feature_extraction import FEATURE_GROUPS
 
 
 @dataclass
@@ -938,6 +939,34 @@ def run_benchmark_for_segments(config: Config, num_segments: int,
     print("\n" + "-" * 40)
     print("测试 PLV 特征...")
     all_results.extend(benchmark_plv(eeg_data, config, iterations))
+
+    # 直接打印本轮所有特征的耗时，顺序与计算顺序一致，便于筛掉慢特征
+    print("\n" + "=" * 80)
+    print("按计算顺序列出所有特征耗时 (均值ms)，含超时标记")
+    print("=" * 80)
+    for idx, r in enumerate(all_results, 1):
+        status = "TIMEOUT" if np.isnan(r.mean_time_ms) else "OK"
+        print(
+            f"{idx:03d}. {r.feature_name:<45} | 类别: {r.category:<15} | "
+            f"平均耗时: {r.mean_time_ms:8.2f} ms | 状态: {status}"
+        )
+
+    # 按 FEATURE_GROUPS 枚举每个特征（即便未单独计时也标记为 NOT_MEASURED）
+    print("\n" + "=" * 80)
+    print("按 FEATURE_GROUPS 列出每个特征耗时 (均值ms)，含缺失/超时标记")
+    print("=" * 80)
+    result_map = {r.feature_name: r for r in all_results}
+    for group_name, feature_list in FEATURE_GROUPS.items():
+        print(f"[组] {group_name}")
+        for feat in feature_list:
+            r = result_map.get(feat)
+            if r is None:
+                status = "NOT_MEASURED"
+                mean_str = "   n/a"
+            else:
+                status = "TIMEOUT" if np.isnan(r.mean_time_ms) else "OK"
+                mean_str = f"{r.mean_time_ms:8.2f}"
+            print(f"  - {feat:<40} | 平均耗时: {mean_str} ms | 状态: {status}")
 
     return all_results, actual_num_segments
 

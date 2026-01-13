@@ -15,7 +15,7 @@
     # 使用预设模式
     python selective_feature_extraction.py -i /mnt/dataset2/hdf5_datasets/SEED/sub_2.h5 -o ./output_sub2 --preset standard
 
-    python selective_feature_extraction.py -i /mnt/dataset2/hdf5_datasets/SEED/sub_2.h5 -o ./output_sub2 --preset standard
+    python selective_feature_extraction.py -i /mnt/dataset2/hdf5_datasets/SEED -o /mnt/dataset4/cx/code/EEG_LLM_text/SEED_2s_full --preset full
     # 选择特征组
     python selective_feature_extraction.py -i data.h5 -o ./output --groups time_domain frequency_domain
 
@@ -200,8 +200,8 @@ PRESETS = {
     },
     'full': {
         'description': '完整模式 - 计算所有特征（包括DE、PLV、分形维数等）',
-        'groups': ['time_domain', 'frequency_domain', 'complexity', 'connectivity', 'network', 'composite', 'de_features'],
-        'exclude_features': [],
+        'groups': ['time_domain', 'frequency_domain', 'complexity', 'connectivity', 'network', 'composite', 'de_features','microstate'],
+        'exclude_features': ['sample_entropy', 'approx_entropy'],
     },
     'basic': {
         'description': '基础模式 - 仅计算时域和频率功率特征',
@@ -236,24 +236,33 @@ PRESETS = {
             'faa_f3f4', 'faa_f7f8', 'faa_mean',
         ],
     },
-    'cognitive': {
-        'description': '认知负荷模式 - 用于认知负荷研究的特征（包括拆分后的认知负荷指标）',
-        'groups': [],
-        'include_features': [
-            # 时域
-            'mean_rms', 'hjorth_activity', 'hjorth_complexity',
-            # 频域
-            'theta_power', 'alpha_power', 'beta_power',
-            'theta_relative_power', 'alpha_relative_power', 'beta_relative_power',
-            'theta_beta_ratio', 'spectral_entropy',
-            # 复杂度
-            'wavelet_energy_entropy', 'hurst_exponent',
-            'higuchi_fd', 'katz_fd',
-            # 连接性
-            'mean_alpha_coherence',
-            # 综合（拆分后的认知负荷指标）
-            'theta_alpha_ratio', 'frontal_beta_ratio', 'cognitive_load_estimate',
-        ],
+    'sleep': {
+    'description': '睡眠模式 - 用于睡眠分期与睡眠质量分析的特征',
+    'groups': [
+        'time_domain',
+        'frequency_domain',
+        'composite'
+    ],
+    'include_features': [
+
+        # 频带相关性 / 功率耦合
+        'alpha_beta_band_power_correlation',
+
+        # 相位同步（连接性特征）
+        'plv_theta_mean',
+        'plv_alpha_mean',
+        'plv_beta_mean',
+        'plv_gamma_mean',
+
+        # 差分熵（频域信息量，睡眠分期核心特征）
+        'de_delta',
+        'de_theta',
+        'de_alpha',
+        'de_beta',
+        'de_gamma',
+        'de_low_gamma',
+        'de_high_gamma',
+    ],
     },
     'de_only': {
         'description': '仅DE特征模式 - 仅计算微分熵相关特征',
@@ -447,6 +456,32 @@ class SelectiveFeatureExtractor:
         other_cols_all = [c for c in df_all.columns if c not in meta_cols and c not in feature_cols_all]
         df_all = df_all[meta_cols + feature_cols_all + other_cols_all]
         return df_all
+
+
+def process_input_path(input_path: str, output_dir: str, extractor: SelectiveFeatureExtractor,
+                       verbose: bool = True):
+    """支持单文件或文件夹批量处理"""
+    in_path = Path(input_path)
+
+    if in_path.is_file():
+        return extractor.process_h5_file(str(in_path), output_dir, verbose=verbose)
+
+    if in_path.is_dir():
+        h5_files = sorted(in_path.glob('*.h5'))
+        if not h5_files:
+            raise FileNotFoundError(f"目录中未找到 .h5 文件: {input_path}")
+
+        results = []
+        for h5_file in h5_files:
+            sub_output = Path(output_dir) / h5_file.stem
+            if verbose:
+                print(f"\n处理文件: {h5_file}")
+                print(f"输出目录: {sub_output}")
+            df = extractor.process_h5_file(str(h5_file), str(sub_output), verbose=verbose)
+            results.append(df)
+        return results
+
+    raise FileNotFoundError(f"输入路径不存在: {input_path}")
 
 
 # =============================================================================
@@ -709,9 +744,10 @@ def main():
             print(f"GPU: {'启用' if eeg_config.use_gpu else '禁用'}")
 
         # 处理文件
-        extractor.process_h5_file(
+        process_input_path(
             args.input,
             args.output,
+            extractor,
             verbose=not args.quiet
         )
 

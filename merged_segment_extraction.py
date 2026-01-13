@@ -10,9 +10,10 @@
 
 使用方法：
     # 每15个segment合并成1个（默认按trial内合并）
-    python merged_segment_extraction.py -i /mnt/dataset2/hdf5_datasets/Workload_MATB -o /mnt/dataset4/cx/code/EEG_LLM_text/Workload_output_30s --merge-count 15
-    python merged_segment_extraction.py -i /mnt/dataset2/hdf5_datasets/SEED -o /mnt/dataset4/cx/code/EEG_LLM_text/SEED_output_30s --merge-count 15 --preset fast
+    python merged_segment_extraction.py -i /mnt/dataset2/hdf5_datasets/Workload_MATB -o /mnt/dataset4/cx/code/EEG_LLM_text/Workload_new_full --merge-count 1
+    python merged_segment_extraction.py -i /mnt/dataset2/hdf5_datasets/SEED -o /mnt/dataset4/cx/code/EEG_LLM_text/SEED_2s_full --merge-count 1 --preset full
     python merged_segment_extraction.py -i /mnt/dataset2/hdf5_datasets/Workload_MATB -o /mnt/dataset4/cx/code/EEG_LLM_text/Workload_output_30s --merge-count 15 --preset fast
+    python merged_segment_extraction.py -i /mnt/dataset2/hdf5_datasets/SleepEDF -o /mnt/dataset4/cx/code/EEG_LLM_text/SleepEDF_output_new_sleep --merge-count 1 --preset sleep
     # 每3个segment合并，跨trial合并
     python merged_segment_extraction.py -i data.h5 -o ./output --merge-count 3 --cross-trial
 
@@ -54,6 +55,7 @@ from eeg_feature_extraction.features import (
     ConnectivityFeatures,
     NetworkFeatures,
     CompositeFeatures,
+    DEFeatures,
     MicrostateFeatures,
     MicrostateAnalyzer,
 )

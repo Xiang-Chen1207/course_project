@@ -64,20 +64,25 @@ class CompositeFeatures(BaseFeature):
 
         # 1. 计算认知负荷相关特征（拆分为独立指标）
         theta_alpha_ratio, frontal_beta_ratio = self._compute_cognitive_load_components(psd_result)
-        features['theta_alpha_ratio'] = float(theta_alpha_ratio)
-        features['frontal_beta_ratio'] = float(frontal_beta_ratio)
+        if theta_alpha_ratio is not None:
+            features['theta_alpha_ratio'] = float(theta_alpha_ratio)
+        if frontal_beta_ratio is not None:
+            features['frontal_beta_ratio'] = float(frontal_beta_ratio)
 
         # 2. 综合认知负荷估计（使用拆分后的特征计算）
         cognitive_load = self._compute_cognitive_load(theta_alpha_ratio, frontal_beta_ratio)
-        features['cognitive_load_estimate'] = float(cognitive_load)
+        if cognitive_load is not None:
+            features['cognitive_load_estimate'] = float(cognitive_load)
 
         # 3. 清醒度水平估计
         alertness = self._compute_alertness(psd_result)
-        features['alertness_estimate'] = float(alertness)
+        if alertness is not None:
+            features['alertness_estimate'] = float(alertness)
 
         # 4. 放松 vs 紧张状态判别
         relaxation = self._compute_relaxation_index(psd_result)
-        features['relaxation_index'] = float(relaxation)
+        if relaxation is not None:
+            features['relaxation_index'] = float(relaxation)
 
         return features
 
@@ -105,16 +110,16 @@ class CompositeFeatures(BaseFeature):
         # 1. 计算全脑 Theta/Alpha 比率
         total_alpha = np.sum(alpha_power)
         total_theta = np.sum(theta_power)
-        theta_alpha_ratio = total_theta / total_alpha if total_alpha > 1e-10 else 0
+        theta_alpha_ratio = self._safe_ratio(total_theta, total_alpha)
 
         # 2. 计算前额 Beta 与全脑 Beta 的比值
         frontal_indices = self._get_channel_indices(self.channel_groups.frontal)
         if frontal_indices:
             frontal_beta = np.mean(beta_power[frontal_indices])
             total_beta = np.mean(beta_power)
-            frontal_beta_ratio = frontal_beta / total_beta if total_beta > 1e-10 else 1.0
+            frontal_beta_ratio = self._safe_ratio(frontal_beta, total_beta)
         else:
-            frontal_beta_ratio = 1.0
+            frontal_beta_ratio = None
 
         return theta_alpha_ratio, frontal_beta_ratio
 
@@ -136,6 +141,8 @@ class CompositeFeatures(BaseFeature):
         """
         # 综合计算（简化模型）
         # 高 Theta/Alpha 和高前额 Beta 比值表示高认知负荷
+        if theta_alpha_ratio is None or frontal_beta_ratio is None:
+            return None
         raw_score = 0.6 * theta_alpha_ratio + 0.4 * frontal_beta_ratio
 
         # Sigmoid 归一化到 0-1
@@ -159,7 +166,9 @@ class CompositeFeatures(BaseFeature):
         total_delta = np.sum(delta_power)
 
         # Alpha/Delta 比率
-        alpha_delta_ratio = total_alpha / total_delta if total_delta > 1e-10 else 1
+        alpha_delta_ratio = self._safe_ratio(total_alpha, total_delta)
+        if alpha_delta_ratio is None:
+            return None
 
         # Sigmoid 归一化
         # 典型清醒状态的 Alpha/Delta 比率约为 0.5-2
@@ -183,9 +192,20 @@ class CompositeFeatures(BaseFeature):
         total_beta = np.sum(beta_power)
 
         total = total_alpha + total_beta
-        if total > 1e-10:
-            relaxation = total_alpha / total
-        else:
-            relaxation = 0.5  # 默认中性状态
+        if total <= 0:
+            return None
 
-        return np.clip(relaxation, 0, 1)
+        relaxation = total_alpha / total
+        if 0.01 <= relaxation <= 100:
+            return float(np.clip(relaxation, 0, 1))
+        return None
+
+    @staticmethod
+    def _safe_ratio(numerator: float, denominator: float) -> Optional[float]:
+        """返回位于[0.01, 100]的比值，否则为None"""
+        if denominator <= 0:
+            return None
+        val = numerator / denominator
+        if np.isfinite(val) and 0.01 <= val <= 100:
+            return float(val)
+        return None

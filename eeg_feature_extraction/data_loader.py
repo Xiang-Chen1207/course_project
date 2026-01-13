@@ -102,7 +102,7 @@ class EEGDataLoader:
 
             # 获取 EEG 数据
             eeg_data = eeg_dset[:]
-
+            eeg_data = eeg_data * 1e6
             # 获取属性
             eeg_attrs = dict(eeg_dset.attrs)
             trial_attrs = dict(trial_grp.attrs)

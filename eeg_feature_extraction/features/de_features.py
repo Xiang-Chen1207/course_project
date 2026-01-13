@@ -16,6 +16,7 @@
 import numpy as np
 from typing import Dict, Optional, List, Tuple
 from scipy.signal import welch
+from scipy.integrate import trapezoid
 
 from .base import BaseFeature, FeatureRegistry
 from ..psd_computer import PSDResult
@@ -107,7 +108,7 @@ def compute_band_variance(signal: np.ndarray, fs: float,
 
     # 计算频段功率（积分PSD）
     freq_resolution = freqs[1] - freqs[0] if len(freqs) > 1 else 1.0
-    band_power = np.trapz(psd[band_mask], dx=freq_resolution)
+    band_power = trapezoid(psd[band_mask], dx=freq_resolution)
 
     return max(band_power, 1e-15)
 
@@ -303,12 +304,12 @@ class DEFeatures(BaseFeature):
                     de_left = de_values[left_idx]
                     de_right = de_values[right_idx]
 
-                    # 避免除零
-                    if abs(de_right) > 1e-10:
-                        rasm = de_left / de_right
+                    rasm = self._safe_ratio(de_left, de_right)
+                    if rasm is not None:
                         rasm_values.append(rasm)
 
-            features[f'rasm_{band}'] = float(np.mean(rasm_values)) if rasm_values else 1.0
+            if rasm_values:
+                features[f'rasm_{band}'] = float(np.mean(rasm_values))
 
         return features
 
@@ -394,3 +395,13 @@ class DEFeatures(BaseFeature):
         features['faa_mean'] = float(np.mean(faa_values)) if faa_values else 0.0
 
         return features
+
+    @staticmethod
+    def _safe_ratio(numerator: float, denominator: float) -> Optional[float]:
+        """返回位于[0.01, 100]的比值，否则为None"""
+        if denominator <= 0:
+            return None
+        val = numerator / denominator
+        if np.isfinite(val) and 0.01 <= val <= 100:
+            return float(val)
+        return None
