@@ -156,16 +156,30 @@ class TimeDomainFeatures(BaseFeature):
         return float(np.mean(zcr_per_sec))
 
     def _compute_zero_crossing_rate_gpu(self, eeg_gpu) -> float:
-        """GPU 计算零交叉率"""
+        """GPU 计算零交叉率 - 与 CPU 版本一致的实现"""
         n_samples = eeg_gpu.shape[1]
         duration = n_samples / self.fs
 
-        # GPU 路径用严格符号变化计数（不对 0 做复杂填充，避免额外开销）；
-        # 对于少量精确为 0 的点，统计会略偏低但不会出现重复计数。
-        signs = cp.sign(eeg_gpu)
-        sign_changes = cp.sum((signs[:, :-1] * signs[:, 1:]) < 0, axis=1)
+        # 转换到 CPU 以使用与 CPU 版本完全一致的零值填充逻辑
+        eeg_data = cp.asnumpy(eeg_gpu)
+        signs = np.sign(eeg_data)
+
+        # 前向填充 0（与 CPU 版本一致）
+        for ch in range(signs.shape[0]):
+            s = signs[ch]
+            for i in range(1, s.shape[0]):
+                if s[i] == 0:
+                    s[i] = s[i - 1]
+            # 若开头仍是 0，则后向填充
+            if s[0] == 0:
+                for i in range(1, s.shape[0]):
+                    if s[i] != 0:
+                        s[:i] = s[i]
+                        break
+
+        sign_changes = np.sum((signs[:, :-1] * signs[:, 1:]) < 0, axis=1)
         zcr_per_sec = sign_changes / duration if duration > 0 else sign_changes
-        return cp.mean(zcr_per_sec)
+        return float(np.mean(zcr_per_sec))
 
     def _compute_hjorth_params_cpu(self, eeg_data: np.ndarray) -> tuple:
         """CPU 计算 Hjorth 参数"""

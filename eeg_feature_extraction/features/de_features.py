@@ -254,13 +254,13 @@ class DEFeatures(BaseFeature):
         计算差分不对称性 (DASM)
 
         DASM = DE(Left) - DE(Right)
-        对14对对称电极计算后取平均
+        仅使用数据中存在的对称电极对
         """
         features = {}
 
         for band in bands:
             if band not in de_matrix:
-                features[f'dasm_{band}'] = 0.0
+                features[f'dasm_{band}'] = None
                 continue
 
             de_values = de_matrix[band]
@@ -270,11 +270,16 @@ class DEFeatures(BaseFeature):
                 left_idx = self._get_channel_idx(left_ch)
                 right_idx = self._get_channel_idx(right_ch)
 
+                # 只使用数据中存在的电极对
                 if left_idx is not None and right_idx is not None:
                     dasm = de_values[left_idx] - de_values[right_idx]
-                    dasm_values.append(dasm)
+                    if np.isfinite(dasm):
+                        dasm_values.append(dasm)
 
-            features[f'dasm_{band}'] = float(np.mean(dasm_values)) if dasm_values else 0.0
+            if dasm_values:
+                features[f'dasm_{band}'] = float(np.mean(dasm_values))
+            else:
+                features[f'dasm_{band}'] = None
 
         return features
 
@@ -284,13 +289,13 @@ class DEFeatures(BaseFeature):
         计算有理不对称性 (RASM)
 
         RASM = DE(Left) / DE(Right)
-        对14对对称电极计算后取平均
+        仅使用数据中存在的对称电极对，当 DE 为负值或比值超出范围时返回 None
         """
         features = {}
 
         for band in bands:
             if band not in de_matrix:
-                features[f'rasm_{band}'] = 1.0
+                features[f'rasm_{band}'] = None
                 continue
 
             de_values = de_matrix[band]
@@ -300,16 +305,21 @@ class DEFeatures(BaseFeature):
                 left_idx = self._get_channel_idx(left_ch)
                 right_idx = self._get_channel_idx(right_ch)
 
+                # 只使用数据中存在的电极对
                 if left_idx is not None and right_idx is not None:
                     de_left = de_values[left_idx]
                     de_right = de_values[right_idx]
 
-                    rasm = self._safe_ratio(de_left, de_right)
-                    if rasm is not None:
-                        rasm_values.append(rasm)
+                    # RASM 要求两个 DE 值都为正（DE 可能为负）
+                    if de_left > 0 and de_right > 0:
+                        rasm = self._safe_ratio(de_left, de_right)
+                        if rasm is not None:
+                            rasm_values.append(rasm)
 
             if rasm_values:
                 features[f'rasm_{band}'] = float(np.mean(rasm_values))
+            else:
+                features[f'rasm_{band}'] = None
 
         return features
 
@@ -319,13 +329,13 @@ class DEFeatures(BaseFeature):
         计算差分尾部性 (DCAU)
 
         DCAU = DE(Frontal) - DE(Posterior)
-        对11对前后电极计算后取平均
+        仅使用数据中存在的前后电极对
         """
         features = {}
 
         for band in bands:
             if band not in de_matrix:
-                features[f'dcau_{band}'] = 0.0
+                features[f'dcau_{band}'] = None
                 continue
 
             de_values = de_matrix[band]
@@ -335,11 +345,16 @@ class DEFeatures(BaseFeature):
                 frontal_idx = self._get_channel_idx(frontal_ch)
                 posterior_idx = self._get_channel_idx(posterior_ch)
 
+                # 只使用数据中存在的电极对
                 if frontal_idx is not None and posterior_idx is not None:
                     dcau = de_values[frontal_idx] - de_values[posterior_idx]
-                    dcau_values.append(dcau)
+                    if np.isfinite(dcau):
+                        dcau_values.append(dcau)
 
-            features[f'dcau_{band}'] = float(np.mean(dcau_values)) if dcau_values else 0.0
+            if dcau_values:
+                features[f'dcau_{band}'] = float(np.mean(dcau_values))
+            else:
+                features[f'dcau_{band}'] = None
 
         return features
 
@@ -398,10 +413,11 @@ class DEFeatures(BaseFeature):
 
     @staticmethod
     def _safe_ratio(numerator: float, denominator: float) -> Optional[float]:
-        """返回位于[0.01, 100]的比值，否则为None"""
+        """返回比值，如果不在有效范围 [0.01, 100] 则返回 None"""
         if denominator <= 0:
             return None
         val = numerator / denominator
         if np.isfinite(val) and 0.01 <= val <= 100:
             return float(val)
+        # 超出范围返回 None
         return None
