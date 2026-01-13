@@ -374,6 +374,10 @@ class DEFeatures(BaseFeature):
         faa_values = []
         faa_names = ['f3f4', 'f7f8', 'fp1fp2', 'af3af4']
 
+        # 初始化所有 FAA 特征为 None，确保 CSV 列一致
+        for i in range(3):
+            features[f'faa_{faa_names[i]}'] = None
+
         for i, (left_ch, right_ch) in enumerate(FAA_PAIRS):
             left_idx = self._get_channel_idx(left_ch)
             right_idx = self._get_channel_idx(right_ch)
@@ -406,18 +410,18 @@ class DEFeatures(BaseFeature):
                 if i < 3:
                     features[f'faa_{faa_names[i]}'] = float(faa)
 
-        # 平均FAA
-        features['faa_mean'] = float(np.mean(faa_values)) if faa_values else 0.0
+        # 平均FAA - 即使为None也要写入
+        features['faa_mean'] = float(np.mean(faa_values)) if faa_values else None
 
         return features
 
     @staticmethod
     def _safe_ratio(numerator: float, denominator: float) -> Optional[float]:
-        """返回比值，如果不在有效范围 [0.01, 100] 则返回 None"""
+        """返回比值，裁剪到[0.01, 100]范围内，分母无效时返回None"""
         if denominator <= 0:
             return None
         val = numerator / denominator
-        if np.isfinite(val) and 0.01 <= val <= 100:
-            return float(val)
-        # 超出范围返回 None
-        return None
+        if not np.isfinite(val):
+            return None
+        # 裁剪到有效范围 [0.01, 100]
+        return float(np.clip(val, 0.01, 100))

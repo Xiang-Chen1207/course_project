@@ -246,9 +246,10 @@ class ConnectivityFeatures(BaseFeature):
         # 6. 前后脑区功率梯度
         if psd_result is not None:
             gradient = self._compute_ap_gradient(psd_result)
-            features['frontal_occipital_alpha_ratio'] = float(gradient)
+            # 即使为None也要写入，确保CSV列一致
+            features['frontal_occipital_alpha_ratio'] = gradient
         else:
-            features['frontal_occipital_alpha_ratio'] = 0.0
+            features['frontal_occipital_alpha_ratio'] = None
 
         # 7-12. PLV特征
         plv_features = self._compute_plv_features(eeg_data)
@@ -436,7 +437,7 @@ class ConnectivityFeatures(BaseFeature):
             return (right_power - left_power) / total
         return 0.0
 
-    def _compute_ap_gradient(self, psd_result: PSDResult) -> float:
+    def _compute_ap_gradient(self, psd_result: PSDResult) -> Optional[float]:
         """
         计算前后脑区功率梯度
 
@@ -448,21 +449,20 @@ class ConnectivityFeatures(BaseFeature):
         occipital_indices = self._get_channel_indices(self.channel_groups.occipital)
 
         if not frontal_indices or not occipital_indices:
-            return 0.0
+            return None
 
         frontal_power = np.mean(alpha_power[frontal_indices])
         occipital_power = np.mean(alpha_power[occipital_indices])
 
-        ratio = self._safe_ratio(frontal_power, occipital_power)
-        return ratio if ratio is not None else 0.0
+        return self._safe_ratio(frontal_power, occipital_power)
 
     @staticmethod
     def _safe_ratio(numerator: float, denominator: float) -> Optional[float]:
-        """返回比值，如果不在有效范围 [0.01, 100] 则返回 None"""
+        """返回比值，裁剪到[0.01, 100]范围内，分母无效时返回None"""
         if denominator <= 0:
             return None
         val = numerator / denominator
-        if np.isfinite(val) and 0.01 <= val <= 100:
-            return float(val)
-        # 超出范围返回 None
-        return None
+        if not np.isfinite(val):
+            return None
+        # 裁剪到有效范围 [0.01, 100]
+        return float(np.clip(val, 0.01, 100))
