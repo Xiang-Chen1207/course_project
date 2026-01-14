@@ -1,0 +1,728 @@
+/mnt/dataset4/cx/code/EEG_LLM_text/Workload_basic/sub_11/merged_segment_0744.csv
+Traceback (most recent call last):
+  File "/mnt/dataset4/cx/code/EEG_LLM_text/merged_segment_extraction.py", line 202, in _process_merged_segment_task
+    df = df[meta_cols + feature_cols]
+  File "/home/chenx/miniconda3/lib/python3.12/site-packages/pandas/util/_decorators.py", line 333, in wrapper
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/chenx/miniconda3/lib/python3.12/site-packages/pandas/core/generic.py", line 3967, in to_csv
+    return DataFrameRenderer(formatter).to_csv(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/chenx/miniconda3/lib/python3.12/site-packages/pandas/io/formats/format.py", line 1014, in to_csv
+    csv_formatter.save()
+  File "/home/chenx/miniconda3/lib/python3.12/site-packages/pandas/io/formats/csvs.py", line 251, in save
+    with get_handle(
+         ^^^^^^^^^^^
+  File "/home/chenx/miniconda3/lib/python3.12/site-packages/pandas/io/common.py", line 749, in get_handle
+    check_parent_directory(str(handle))
+  File "/home/chenx/miniconda3/lib/python3.12/site-packages/pandas/io/common.py", line 615, in check_parent_directory
+    if not parent.is_dir():
+           ^^^^^^^^^^^^^^^
+  File "/home/chenx/miniconda3/lib/python3.12/pathlib.py", line 875, in is_dir
+    return S_ISDIR(self.stat().st_mode)
+                   ^^^^^^^^^^^
+  File "/home/chenx/miniconda3/lib/python3.12/pathlib.py", line 840, in stat
+    return os.stat(self, follow_symlinks=follow_symlinks)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+PermissionError: [Errno 13] Permission denied: '/mnt/dataset4/cx/code/EEG_LLM_text/Workload_basic/sub_11'
+--------------------------------------------------------------------------------
+/mnt/dataset4/cx/code/EEG_LLM_text/Workload_basic/sub_11/merged_segment_0755.csv
+Traceback (most recent call last):
+  File "/mnt/dataset4/cx/code/EEG_LLM_text/merged_segment_extraction.py", line 202, in _process_merged_segment_task
+    df = df[meta_cols + feature_cols]
+  File "/home/chenx/miniconda3/lib/python3.12/site-packages/pandas/util/_decorators.py", line 333, in wrapper
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/chenx/miniconda3/lib/python3.12/site-packages/pandas/core/generic.py", line 3967, in to_csv
+    return DataFrameRenderer(formatter).to_csv(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/chenx/miniconda3/lib/python3.12/site-packages/pandas/io/formats/format.py", line 1014, in to_csv
+    csv_formatter.save()
+  File "/home/chenx/miniconda3/lib/python3.12/site-packages/pandas/io/formats/csvs.py", line 251, in save
+    with get_handle(
+         ^^^^^^^^^^^
+  File "/home/chenx/miniconda3/lib/python3.12/site-packages/pandas/io/common.py", line 749, in get_handle
+    check_parent_directory(str(handle))
+  File "/home/chenx/miniconda3/lib/python3.12/site-packages/pandas/io/common.py", line 615, in check_parent_directory
+    if not parent.is_dir():
+           ^^^^^^^^^^^^^^^
+  File "/home/chenx/miniconda3/lib/python3.12/pathlib.py", line 875, in is_dir
+    return S_ISDIR(self.stat().st_mode)
+                   ^^^^^^^^^^^
+  File "/home/chenx/miniconda3/lib/python3.12/pathlib.py", line 840, in stat
+    return os.stat(self, follow_symlinks=follow_symlinks)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+PermissionError: [Errno 13] Permission denied: '/mnt/dataset4/cx/code/EEG_LLM_text/Workload_basic/sub_11'
+--------------------------------------------------------------------------------
+/mnt/dataset4/cx/code/EEG_LLM_text/Workload_basic/sub_11/merged_segment_0736.csv
+Traceback (most recent call last):
+  File "/mnt/dataset4/cx/code/EEG_LLM_text/merged_segment_extraction.py", line 202, in _process_merged_segment_task
+    df = df[meta_cols + feature_cols]
+  File "/home/chenx/miniconda3/lib/python3.12/site-packages/pandas/util/_decorators.py", line 333, in wrapper
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/chenx/miniconda3/lib/python3.12/site-packages/pandas/core/generic.py", line 3967, in to_csv
+    return DataFrameRenderer(formatter).to_csv(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/chenx/miniconda3/lib/python3.12/site-packages/pandas/io/formats/format.py", line 1014, in to_csv
+    csv_formatter.save()
+  File "/home/chenx/miniconda3/lib/python3.12/site-packages/pandas/io/formats/csvs.py", line 251, in save
+    with get_handle(
+         ^^^^^^^^^^^
+  File "/home/chenx/miniconda3/lib/python3.12/site-packages/pandas/io/common.py", line 749, in get_handle
+    check_parent_directory(str(handle))
+  File "/home/chenx/miniconda3/lib/python3.12/site-packages/pandas/io/common.py", line 615, in check_parent_directory
+    if not parent.is_dir():
+           ^^^^^^^^^^^^^^^
+  File "/home/chenx/miniconda3/lib/python3.12/pathlib.py", line 875, in is_dir
+    return S_ISDIR(self.stat().st_mode)
+                   ^^^^^^^^^^^
+  File "/home/chenx/miniconda3/lib/python3.12/pathlib.py", line 840, in stat
+    return os.stat(self, follow_symlinks=follow_symlinks)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+PermissionError: [Errno 13] Permission denied: '/mnt/dataset4/cx/code/EEG_LLM_text/Workload_basic/sub_11'
+--------------------------------------------------------------------------------
+/mnt/dataset4/cx/code/EEG_LLM_text/Workload_basic/sub_11/merged_segment_0743.csv
+Traceback (most recent call last):
+  File "/mnt/dataset4/cx/code/EEG_LLM_text/merged_segment_extraction.py", line 202, in _process_merged_segment_task
+    df = df[meta_cols + feature_cols]
+  File "/home/chenx/miniconda3/lib/python3.12/site-packages/pandas/util/_decorators.py", line 333, in wrapper
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/chenx/miniconda3/lib/python3.12/site-packages/pandas/core/generic.py", line 3967, in to_csv
+    return DataFrameRenderer(formatter).to_csv(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/chenx/miniconda3/lib/python3.12/site-packages/pandas/io/formats/format.py", line 1014, in to_csv
+    csv_formatter.save()
+  File "/home/chenx/miniconda3/lib/python3.12/site-packages/pandas/io/formats/csvs.py", line 251, in save
+    with get_handle(
+         ^^^^^^^^^^^
+  File "/home/chenx/miniconda3/lib/python3.12/site-packages/pandas/io/common.py", line 749, in get_handle
+    check_parent_directory(str(handle))
+  File "/home/chenx/miniconda3/lib/python3.12/site-packages/pandas/io/common.py", line 615, in check_parent_directory
+    if not parent.is_dir():
+           ^^^^^^^^^^^^^^^
+  File "/home/chenx/miniconda3/lib/python3.12/pathlib.py", line 875, in is_dir
+    return S_ISDIR(self.stat().st_mode)
+                   ^^^^^^^^^^^
+  File "/home/chenx/miniconda3/lib/python3.12/pathlib.py", line 840, in stat
+    return os.stat(self, follow_symlinks=follow_symlinks)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+PermissionError: [Errno 13] Permission denied: '/mnt/dataset4/cx/code/EEG_LLM_text/Workload_basic/sub_11'
+--------------------------------------------------------------------------------
+/mnt/dataset4/cx/code/EEG_LLM_text/Workload_basic/sub_11/merged_segment_0706.csv
+Traceback (most recent call last):
+  File "/mnt/dataset4/cx/code/EEG_LLM_text/merged_segment_extraction.py", line 202, in _process_merged_segment_task
+    df = df[meta_cols + feature_cols]
+  File "/home/chenx/miniconda3/lib/python3.12/site-packages/pandas/util/_decorators.py", line 333, in wrapper
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/chenx/miniconda3/lib/python3.12/site-packages/pandas/core/generic.py", line 3967, in to_csv
+    return DataFrameRenderer(formatter).to_csv(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/chenx/miniconda3/lib/python3.12/site-packages/pandas/io/formats/format.py", line 1014, in to_csv
+    csv_formatter.save()
+  File "/home/chenx/miniconda3/lib/python3.12/site-packages/pandas/io/formats/csvs.py", line 251, in save
+    with get_handle(
+         ^^^^^^^^^^^
+  File "/home/chenx/miniconda3/lib/python3.12/site-packages/pandas/io/common.py", line 749, in get_handle
+    check_parent_directory(str(handle))
+  File "/home/chenx/miniconda3/lib/python3.12/site-packages/pandas/io/common.py", line 615, in check_parent_directory
+    if not parent.is_dir():
+           ^^^^^^^^^^^^^^^
+  File "/home/chenx/miniconda3/lib/python3.12/pathlib.py", line 875, in is_dir
+    return S_ISDIR(self.stat().st_mode)
+                   ^^^^^^^^^^^
+  File "/home/chenx/miniconda3/lib/python3.12/pathlib.py", line 840, in stat
+    return os.stat(self, follow_symlinks=follow_symlinks)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+PermissionError: [Errno 13] Permission denied: '/mnt/dataset4/cx/code/EEG_LLM_text/Workload_basic/sub_11'
+--------------------------------------------------------------------------------
+/mnt/dataset4/cx/code/EEG_LLM_text/Workload_basic/sub_11/merged_segment_0762.csv
+Traceback (most recent call last):
+  File "/mnt/dataset4/cx/code/EEG_LLM_text/merged_segment_extraction.py", line 202, in _process_merged_segment_task
+    df = df[meta_cols + feature_cols]
+  File "/home/chenx/miniconda3/lib/python3.12/site-packages/pandas/util/_decorators.py", line 333, in wrapper
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/chenx/miniconda3/lib/python3.12/site-packages/pandas/core/generic.py", line 3967, in to_csv
+    return DataFrameRenderer(formatter).to_csv(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/chenx/miniconda3/lib/python3.12/site-packages/pandas/io/formats/format.py", line 1014, in to_csv
+    csv_formatter.save()
+  File "/home/chenx/miniconda3/lib/python3.12/site-packages/pandas/io/formats/csvs.py", line 251, in save
+    with get_handle(
+         ^^^^^^^^^^^
+  File "/home/chenx/miniconda3/lib/python3.12/site-packages/pandas/io/common.py", line 749, in get_handle
+    check_parent_directory(str(handle))
+  File "/home/chenx/miniconda3/lib/python3.12/site-packages/pandas/io/common.py", line 615, in check_parent_directory
+    if not parent.is_dir():
+           ^^^^^^^^^^^^^^^
+  File "/home/chenx/miniconda3/lib/python3.12/pathlib.py", line 875, in is_dir
+    return S_ISDIR(self.stat().st_mode)
+                   ^^^^^^^^^^^
+  File "/home/chenx/miniconda3/lib/python3.12/pathlib.py", line 840, in stat
+    return os.stat(self, follow_symlinks=follow_symlinks)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+PermissionError: [Errno 13] Permission denied: '/mnt/dataset4/cx/code/EEG_LLM_text/Workload_basic/sub_11'
+--------------------------------------------------------------------------------
+/mnt/dataset4/cx/code/EEG_LLM_text/Workload_basic/sub_11/merged_segment_0746.csv
+Traceback (most recent call last):
+  File "/mnt/dataset4/cx/code/EEG_LLM_text/merged_segment_extraction.py", line 202, in _process_merged_segment_task
+    df = df[meta_cols + feature_cols]
+  File "/home/chenx/miniconda3/lib/python3.12/site-packages/pandas/util/_decorators.py", line 333, in wrapper
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/chenx/miniconda3/lib/python3.12/site-packages/pandas/core/generic.py", line 3967, in to_csv
+    return DataFrameRenderer(formatter).to_csv(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/chenx/miniconda3/lib/python3.12/site-packages/pandas/io/formats/format.py", line 1014, in to_csv
+    csv_formatter.save()
+  File "/home/chenx/miniconda3/lib/python3.12/site-packages/pandas/io/formats/csvs.py", line 251, in save
+    with get_handle(
+         ^^^^^^^^^^^
+  File "/home/chenx/miniconda3/lib/python3.12/site-packages/pandas/io/common.py", line 749, in get_handle
+    check_parent_directory(str(handle))
+  File "/home/chenx/miniconda3/lib/python3.12/site-packages/pandas/io/common.py", line 615, in check_parent_directory
+    if not parent.is_dir():
+           ^^^^^^^^^^^^^^^
+  File "/home/chenx/miniconda3/lib/python3.12/pathlib.py", line 875, in is_dir
+    return S_ISDIR(self.stat().st_mode)
+                   ^^^^^^^^^^^
+  File "/home/chenx/miniconda3/lib/python3.12/pathlib.py", line 840, in stat
+    return os.stat(self, follow_symlinks=follow_symlinks)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+PermissionError: [Errno 13] Permission denied: '/mnt/dataset4/cx/code/EEG_LLM_text/Workload_basic/sub_11'
+--------------------------------------------------------------------------------
+/mnt/dataset4/cx/code/EEG_LLM_text/Workload_basic/sub_11/merged_segment_0753.csv
+Traceback (most recent call last):
+  File "/mnt/dataset4/cx/code/EEG_LLM_text/merged_segment_extraction.py", line 202, in _process_merged_segment_task
+    df = df[meta_cols + feature_cols]
+  File "/home/chenx/miniconda3/lib/python3.12/site-packages/pandas/util/_decorators.py", line 333, in wrapper
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/chenx/miniconda3/lib/python3.12/site-packages/pandas/core/generic.py", line 3967, in to_csv
+    return DataFrameRenderer(formatter).to_csv(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/chenx/miniconda3/lib/python3.12/site-packages/pandas/io/formats/format.py", line 1014, in to_csv
+    csv_formatter.save()
+  File "/home/chenx/miniconda3/lib/python3.12/site-packages/pandas/io/formats/csvs.py", line 251, in save
+    with get_handle(
+         ^^^^^^^^^^^
+  File "/home/chenx/miniconda3/lib/python3.12/site-packages/pandas/io/common.py", line 749, in get_handle
+    check_parent_directory(str(handle))
+  File "/home/chenx/miniconda3/lib/python3.12/site-packages/pandas/io/common.py", line 615, in check_parent_directory
+    if not parent.is_dir():
+           ^^^^^^^^^^^^^^^
+  File "/home/chenx/miniconda3/lib/python3.12/pathlib.py", line 875, in is_dir
+    return S_ISDIR(self.stat().st_mode)
+                   ^^^^^^^^^^^
+  File "/home/chenx/miniconda3/lib/python3.12/pathlib.py", line 840, in stat
+    return os.stat(self, follow_symlinks=follow_symlinks)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+PermissionError: [Errno 13] Permission denied: '/mnt/dataset4/cx/code/EEG_LLM_text/Workload_basic/sub_11'
+--------------------------------------------------------------------------------
+/mnt/dataset4/cx/code/EEG_LLM_text/Workload_basic/sub_11/merged_segment_0759.csv
+Traceback (most recent call last):
+  File "/mnt/dataset4/cx/code/EEG_LLM_text/merged_segment_extraction.py", line 202, in _process_merged_segment_task
+    df = df[meta_cols + feature_cols]
+  File "/home/chenx/miniconda3/lib/python3.12/site-packages/pandas/util/_decorators.py", line 333, in wrapper
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/chenx/miniconda3/lib/python3.12/site-packages/pandas/core/generic.py", line 3967, in to_csv
+    return DataFrameRenderer(formatter).to_csv(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/chenx/miniconda3/lib/python3.12/site-packages/pandas/io/formats/format.py", line 1014, in to_csv
+    csv_formatter.save()
+  File "/home/chenx/miniconda3/lib/python3.12/site-packages/pandas/io/formats/csvs.py", line 251, in save
+    with get_handle(
+         ^^^^^^^^^^^
+  File "/home/chenx/miniconda3/lib/python3.12/site-packages/pandas/io/common.py", line 749, in get_handle
+    check_parent_directory(str(handle))
+  File "/home/chenx/miniconda3/lib/python3.12/site-packages/pandas/io/common.py", line 615, in check_parent_directory
+    if not parent.is_dir():
+           ^^^^^^^^^^^^^^^
+  File "/home/chenx/miniconda3/lib/python3.12/pathlib.py", line 875, in is_dir
+    return S_ISDIR(self.stat().st_mode)
+                   ^^^^^^^^^^^
+  File "/home/chenx/miniconda3/lib/python3.12/pathlib.py", line 840, in stat
+    return os.stat(self, follow_symlinks=follow_symlinks)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+PermissionError: [Errno 13] Permission denied: '/mnt/dataset4/cx/code/EEG_LLM_text/Workload_basic/sub_11'
+--------------------------------------------------------------------------------
+/mnt/dataset4/cx/code/EEG_LLM_text/Workload_basic/sub_11/merged_segment_0761.csv
+Traceback (most recent call last):
+  File "/mnt/dataset4/cx/code/EEG_LLM_text/merged_segment_extraction.py", line 202, in _process_merged_segment_task
+    df = df[meta_cols + feature_cols]
+  File "/home/chenx/miniconda3/lib/python3.12/site-packages/pandas/util/_decorators.py", line 333, in wrapper
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/chenx/miniconda3/lib/python3.12/site-packages/pandas/core/generic.py", line 3967, in to_csv
+    return DataFrameRenderer(formatter).to_csv(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/chenx/miniconda3/lib/python3.12/site-packages/pandas/io/formats/format.py", line 1014, in to_csv
+    csv_formatter.save()
+  File "/home/chenx/miniconda3/lib/python3.12/site-packages/pandas/io/formats/csvs.py", line 251, in save
+    with get_handle(
+         ^^^^^^^^^^^
+  File "/home/chenx/miniconda3/lib/python3.12/site-packages/pandas/io/common.py", line 749, in get_handle
+    check_parent_directory(str(handle))
+  File "/home/chenx/miniconda3/lib/python3.12/site-packages/pandas/io/common.py", line 615, in check_parent_directory
+    if not parent.is_dir():
+           ^^^^^^^^^^^^^^^
+  File "/home/chenx/miniconda3/lib/python3.12/pathlib.py", line 875, in is_dir
+    return S_ISDIR(self.stat().st_mode)
+                   ^^^^^^^^^^^
+  File "/home/chenx/miniconda3/lib/python3.12/pathlib.py", line 840, in stat
+    return os.stat(self, follow_symlinks=follow_symlinks)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+PermissionError: [Errno 13] Permission denied: '/mnt/dataset4/cx/code/EEG_LLM_text/Workload_basic/sub_11'
+--------------------------------------------------------------------------------
+/mnt/dataset4/cx/code/EEG_LLM_text/Workload_basic/sub_11/merged_segment_0723.csv
+Traceback (most recent call last):
+  File "/mnt/dataset4/cx/code/EEG_LLM_text/merged_segment_extraction.py", line 202, in _process_merged_segment_task
+    df = df[meta_cols + feature_cols]
+  File "/home/chenx/miniconda3/lib/python3.12/site-packages/pandas/util/_decorators.py", line 333, in wrapper
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/chenx/miniconda3/lib/python3.12/site-packages/pandas/core/generic.py", line 3967, in to_csv
+    return DataFrameRenderer(formatter).to_csv(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/chenx/miniconda3/lib/python3.12/site-packages/pandas/io/formats/format.py", line 1014, in to_csv
+    csv_formatter.save()
+  File "/home/chenx/miniconda3/lib/python3.12/site-packages/pandas/io/formats/csvs.py", line 251, in save
+    with get_handle(
+         ^^^^^^^^^^^
+  File "/home/chenx/miniconda3/lib/python3.12/site-packages/pandas/io/common.py", line 749, in get_handle
+    check_parent_directory(str(handle))
+  File "/home/chenx/miniconda3/lib/python3.12/site-packages/pandas/io/common.py", line 615, in check_parent_directory
+    if not parent.is_dir():
+           ^^^^^^^^^^^^^^^
+  File "/home/chenx/miniconda3/lib/python3.12/pathlib.py", line 875, in is_dir
+    return S_ISDIR(self.stat().st_mode)
+                   ^^^^^^^^^^^
+  File "/home/chenx/miniconda3/lib/python3.12/pathlib.py", line 840, in stat
+    return os.stat(self, follow_symlinks=follow_symlinks)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+PermissionError: [Errno 13] Permission denied: '/mnt/dataset4/cx/code/EEG_LLM_text/Workload_basic/sub_11'
+--------------------------------------------------------------------------------
+/mnt/dataset4/cx/code/EEG_LLM_text/Workload_basic/sub_11/merged_segment_0757.csv
+Traceback (most recent call last):
+  File "/mnt/dataset4/cx/code/EEG_LLM_text/merged_segment_extraction.py", line 202, in _process_merged_segment_task
+    df = df[meta_cols + feature_cols]
+  File "/home/chenx/miniconda3/lib/python3.12/site-packages/pandas/util/_decorators.py", line 333, in wrapper
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/chenx/miniconda3/lib/python3.12/site-packages/pandas/core/generic.py", line 3967, in to_csv
+    return DataFrameRenderer(formatter).to_csv(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/chenx/miniconda3/lib/python3.12/site-packages/pandas/io/formats/format.py", line 1014, in to_csv
+    csv_formatter.save()
+  File "/home/chenx/miniconda3/lib/python3.12/site-packages/pandas/io/formats/csvs.py", line 251, in save
+    with get_handle(
+         ^^^^^^^^^^^
+  File "/home/chenx/miniconda3/lib/python3.12/site-packages/pandas/io/common.py", line 749, in get_handle
+    check_parent_directory(str(handle))
+  File "/home/chenx/miniconda3/lib/python3.12/site-packages/pandas/io/common.py", line 615, in check_parent_directory
+    if not parent.is_dir():
+           ^^^^^^^^^^^^^^^
+  File "/home/chenx/miniconda3/lib/python3.12/pathlib.py", line 875, in is_dir
+    return S_ISDIR(self.stat().st_mode)
+                   ^^^^^^^^^^^
+  File "/home/chenx/miniconda3/lib/python3.12/pathlib.py", line 840, in stat
+    return os.stat(self, follow_symlinks=follow_symlinks)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+PermissionError: [Errno 13] Permission denied: '/mnt/dataset4/cx/code/EEG_LLM_text/Workload_basic/sub_11'
+--------------------------------------------------------------------------------
+/mnt/dataset4/cx/code/EEG_LLM_text/Workload_basic/sub_11/merged_segment_0766.csv
+Traceback (most recent call last):
+  File "/mnt/dataset4/cx/code/EEG_LLM_text/merged_segment_extraction.py", line 202, in _process_merged_segment_task
+    df = df[meta_cols + feature_cols]
+  File "/home/chenx/miniconda3/lib/python3.12/site-packages/pandas/util/_decorators.py", line 333, in wrapper
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/chenx/miniconda3/lib/python3.12/site-packages/pandas/core/generic.py", line 3967, in to_csv
+    return DataFrameRenderer(formatter).to_csv(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/chenx/miniconda3/lib/python3.12/site-packages/pandas/io/formats/format.py", line 1014, in to_csv
+    csv_formatter.save()
+  File "/home/chenx/miniconda3/lib/python3.12/site-packages/pandas/io/formats/csvs.py", line 251, in save
+    with get_handle(
+         ^^^^^^^^^^^
+  File "/home/chenx/miniconda3/lib/python3.12/site-packages/pandas/io/common.py", line 749, in get_handle
+    check_parent_directory(str(handle))
+  File "/home/chenx/miniconda3/lib/python3.12/site-packages/pandas/io/common.py", line 615, in check_parent_directory
+    if not parent.is_dir():
+           ^^^^^^^^^^^^^^^
+  File "/home/chenx/miniconda3/lib/python3.12/pathlib.py", line 875, in is_dir
+    return S_ISDIR(self.stat().st_mode)
+                   ^^^^^^^^^^^
+  File "/home/chenx/miniconda3/lib/python3.12/pathlib.py", line 840, in stat
+    return os.stat(self, follow_symlinks=follow_symlinks)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+PermissionError: [Errno 13] Permission denied: '/mnt/dataset4/cx/code/EEG_LLM_text/Workload_basic/sub_11'
+--------------------------------------------------------------------------------
+/mnt/dataset4/cx/code/EEG_LLM_text/Workload_basic/sub_11/merged_segment_0734.csv
+Traceback (most recent call last):
+  File "/mnt/dataset4/cx/code/EEG_LLM_text/merged_segment_extraction.py", line 202, in _process_merged_segment_task
+    df = df[meta_cols + feature_cols]
+  File "/home/chenx/miniconda3/lib/python3.12/site-packages/pandas/util/_decorators.py", line 333, in wrapper
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/chenx/miniconda3/lib/python3.12/site-packages/pandas/core/generic.py", line 3967, in to_csv
+    return DataFrameRenderer(formatter).to_csv(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/chenx/miniconda3/lib/python3.12/site-packages/pandas/io/formats/format.py", line 1014, in to_csv
+    csv_formatter.save()
+  File "/home/chenx/miniconda3/lib/python3.12/site-packages/pandas/io/formats/csvs.py", line 251, in save
+    with get_handle(
+         ^^^^^^^^^^^
+  File "/home/chenx/miniconda3/lib/python3.12/site-packages/pandas/io/common.py", line 749, in get_handle
+    check_parent_directory(str(handle))
+  File "/home/chenx/miniconda3/lib/python3.12/site-packages/pandas/io/common.py", line 615, in check_parent_directory
+    if not parent.is_dir():
+           ^^^^^^^^^^^^^^^
+  File "/home/chenx/miniconda3/lib/python3.12/pathlib.py", line 875, in is_dir
+    return S_ISDIR(self.stat().st_mode)
+                   ^^^^^^^^^^^
+  File "/home/chenx/miniconda3/lib/python3.12/pathlib.py", line 840, in stat
+    return os.stat(self, follow_symlinks=follow_symlinks)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+PermissionError: [Errno 13] Permission denied: '/mnt/dataset4/cx/code/EEG_LLM_text/Workload_basic/sub_11'
+--------------------------------------------------------------------------------
+/mnt/dataset4/cx/code/EEG_LLM_text/Workload_basic/sub_11/merged_segment_0745.csv
+Traceback (most recent call last):
+  File "/mnt/dataset4/cx/code/EEG_LLM_text/merged_segment_extraction.py", line 202, in _process_merged_segment_task
+    df = df[meta_cols + feature_cols]
+  File "/home/chenx/miniconda3/lib/python3.12/site-packages/pandas/util/_decorators.py", line 333, in wrapper
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/chenx/miniconda3/lib/python3.12/site-packages/pandas/core/generic.py", line 3967, in to_csv
+    return DataFrameRenderer(formatter).to_csv(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/chenx/miniconda3/lib/python3.12/site-packages/pandas/io/formats/format.py", line 1014, in to_csv
+    csv_formatter.save()
+  File "/home/chenx/miniconda3/lib/python3.12/site-packages/pandas/io/formats/csvs.py", line 251, in save
+    with get_handle(
+         ^^^^^^^^^^^
+  File "/home/chenx/miniconda3/lib/python3.12/site-packages/pandas/io/common.py", line 749, in get_handle
+    check_parent_directory(str(handle))
+  File "/home/chenx/miniconda3/lib/python3.12/site-packages/pandas/io/common.py", line 615, in check_parent_directory
+    if not parent.is_dir():
+           ^^^^^^^^^^^^^^^
+  File "/home/chenx/miniconda3/lib/python3.12/pathlib.py", line 875, in is_dir
+    return S_ISDIR(self.stat().st_mode)
+                   ^^^^^^^^^^^
+  File "/home/chenx/miniconda3/lib/python3.12/pathlib.py", line 840, in stat
+    return os.stat(self, follow_symlinks=follow_symlinks)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+PermissionError: [Errno 13] Permission denied: '/mnt/dataset4/cx/code/EEG_LLM_text/Workload_basic/sub_11'
+--------------------------------------------------------------------------------
+/mnt/dataset4/cx/code/EEG_LLM_text/Workload_basic/sub_11/merged_segment_0765.csv
+Traceback (most recent call last):
+  File "/mnt/dataset4/cx/code/EEG_LLM_text/merged_segment_extraction.py", line 202, in _process_merged_segment_task
+    df = df[meta_cols + feature_cols]
+  File "/home/chenx/miniconda3/lib/python3.12/site-packages/pandas/util/_decorators.py", line 333, in wrapper
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/chenx/miniconda3/lib/python3.12/site-packages/pandas/core/generic.py", line 3967, in to_csv
+    return DataFrameRenderer(formatter).to_csv(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/chenx/miniconda3/lib/python3.12/site-packages/pandas/io/formats/format.py", line 1014, in to_csv
+    csv_formatter.save()
+  File "/home/chenx/miniconda3/lib/python3.12/site-packages/pandas/io/formats/csvs.py", line 251, in save
+    with get_handle(
+         ^^^^^^^^^^^
+  File "/home/chenx/miniconda3/lib/python3.12/site-packages/pandas/io/common.py", line 749, in get_handle
+    check_parent_directory(str(handle))
+  File "/home/chenx/miniconda3/lib/python3.12/site-packages/pandas/io/common.py", line 615, in check_parent_directory
+    if not parent.is_dir():
+           ^^^^^^^^^^^^^^^
+  File "/home/chenx/miniconda3/lib/python3.12/pathlib.py", line 875, in is_dir
+    return S_ISDIR(self.stat().st_mode)
+                   ^^^^^^^^^^^
+  File "/home/chenx/miniconda3/lib/python3.12/pathlib.py", line 840, in stat
+    return os.stat(self, follow_symlinks=follow_symlinks)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+PermissionError: [Errno 13] Permission denied: '/mnt/dataset4/cx/code/EEG_LLM_text/Workload_basic/sub_11'
+--------------------------------------------------------------------------------
+/mnt/dataset4/cx/code/EEG_LLM_text/Workload_basic/sub_11/merged_segment_0758.csv
+Traceback (most recent call last):
+  File "/mnt/dataset4/cx/code/EEG_LLM_text/merged_segment_extraction.py", line 202, in _process_merged_segment_task
+    df = df[meta_cols + feature_cols]
+  File "/home/chenx/miniconda3/lib/python3.12/site-packages/pandas/util/_decorators.py", line 333, in wrapper
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/chenx/miniconda3/lib/python3.12/site-packages/pandas/core/generic.py", line 3967, in to_csv
+    return DataFrameRenderer(formatter).to_csv(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/chenx/miniconda3/lib/python3.12/site-packages/pandas/io/formats/format.py", line 1014, in to_csv
+    csv_formatter.save()
+  File "/home/chenx/miniconda3/lib/python3.12/site-packages/pandas/io/formats/csvs.py", line 251, in save
+    with get_handle(
+         ^^^^^^^^^^^
+  File "/home/chenx/miniconda3/lib/python3.12/site-packages/pandas/io/common.py", line 749, in get_handle
+    check_parent_directory(str(handle))
+  File "/home/chenx/miniconda3/lib/python3.12/site-packages/pandas/io/common.py", line 615, in check_parent_directory
+    if not parent.is_dir():
+           ^^^^^^^^^^^^^^^
+  File "/home/chenx/miniconda3/lib/python3.12/pathlib.py", line 875, in is_dir
+    return S_ISDIR(self.stat().st_mode)
+                   ^^^^^^^^^^^
+  File "/home/chenx/miniconda3/lib/python3.12/pathlib.py", line 840, in stat
+    return os.stat(self, follow_symlinks=follow_symlinks)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+PermissionError: [Errno 13] Permission denied: '/mnt/dataset4/cx/code/EEG_LLM_text/Workload_basic/sub_11'
+--------------------------------------------------------------------------------
+/mnt/dataset4/cx/code/EEG_LLM_text/Workload_basic/sub_11/merged_segment_0749.csv
+Traceback (most recent call last):
+  File "/mnt/dataset4/cx/code/EEG_LLM_text/merged_segment_extraction.py", line 202, in _process_merged_segment_task
+    df = df[meta_cols + feature_cols]
+  File "/home/chenx/miniconda3/lib/python3.12/site-packages/pandas/util/_decorators.py", line 333, in wrapper
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/chenx/miniconda3/lib/python3.12/site-packages/pandas/core/generic.py", line 3967, in to_csv
+    return DataFrameRenderer(formatter).to_csv(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/chenx/miniconda3/lib/python3.12/site-packages/pandas/io/formats/format.py", line 1014, in to_csv
+    csv_formatter.save()
+  File "/home/chenx/miniconda3/lib/python3.12/site-packages/pandas/io/formats/csvs.py", line 251, in save
+    with get_handle(
+         ^^^^^^^^^^^
+  File "/home/chenx/miniconda3/lib/python3.12/site-packages/pandas/io/common.py", line 749, in get_handle
+    check_parent_directory(str(handle))
+  File "/home/chenx/miniconda3/lib/python3.12/site-packages/pandas/io/common.py", line 615, in check_parent_directory
+    if not parent.is_dir():
+           ^^^^^^^^^^^^^^^
+  File "/home/chenx/miniconda3/lib/python3.12/pathlib.py", line 875, in is_dir
+    return S_ISDIR(self.stat().st_mode)
+                   ^^^^^^^^^^^
+  File "/home/chenx/miniconda3/lib/python3.12/pathlib.py", line 840, in stat
+    return os.stat(self, follow_symlinks=follow_symlinks)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+PermissionError: [Errno 13] Permission denied: '/mnt/dataset4/cx/code/EEG_LLM_text/Workload_basic/sub_11'
+--------------------------------------------------------------------------------
+/mnt/dataset4/cx/code/EEG_LLM_text/Workload_basic/sub_11/merged_segment_0710.csv
+Traceback (most recent call last):
+  File "/mnt/dataset4/cx/code/EEG_LLM_text/merged_segment_extraction.py", line 202, in _process_merged_segment_task
+    df = df[meta_cols + feature_cols]
+  File "/home/chenx/miniconda3/lib/python3.12/site-packages/pandas/util/_decorators.py", line 333, in wrapper
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/chenx/miniconda3/lib/python3.12/site-packages/pandas/core/generic.py", line 3967, in to_csv
+    return DataFrameRenderer(formatter).to_csv(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/chenx/miniconda3/lib/python3.12/site-packages/pandas/io/formats/format.py", line 1014, in to_csv
+    csv_formatter.save()
+  File "/home/chenx/miniconda3/lib/python3.12/site-packages/pandas/io/formats/csvs.py", line 251, in save
+    with get_handle(
+         ^^^^^^^^^^^
+  File "/home/chenx/miniconda3/lib/python3.12/site-packages/pandas/io/common.py", line 749, in get_handle
+    check_parent_directory(str(handle))
+  File "/home/chenx/miniconda3/lib/python3.12/site-packages/pandas/io/common.py", line 615, in check_parent_directory
+    if not parent.is_dir():
+           ^^^^^^^^^^^^^^^
+  File "/home/chenx/miniconda3/lib/python3.12/pathlib.py", line 875, in is_dir
+    return S_ISDIR(self.stat().st_mode)
+                   ^^^^^^^^^^^
+  File "/home/chenx/miniconda3/lib/python3.12/pathlib.py", line 840, in stat
+    return os.stat(self, follow_symlinks=follow_symlinks)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+PermissionError: [Errno 13] Permission denied: '/mnt/dataset4/cx/code/EEG_LLM_text/Workload_basic/sub_11'
+--------------------------------------------------------------------------------
+/mnt/dataset4/cx/code/EEG_LLM_text/Workload_basic/sub_11/merged_segment_0708.csv
+Traceback (most recent call last):
+  File "/mnt/dataset4/cx/code/EEG_LLM_text/merged_segment_extraction.py", line 202, in _process_merged_segment_task
+    df = df[meta_cols + feature_cols]
+  File "/home/chenx/miniconda3/lib/python3.12/site-packages/pandas/util/_decorators.py", line 333, in wrapper
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/chenx/miniconda3/lib/python3.12/site-packages/pandas/core/generic.py", line 3967, in to_csv
+    return DataFrameRenderer(formatter).to_csv(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/chenx/miniconda3/lib/python3.12/site-packages/pandas/io/formats/format.py", line 1014, in to_csv
+    csv_formatter.save()
+  File "/home/chenx/miniconda3/lib/python3.12/site-packages/pandas/io/formats/csvs.py", line 251, in save
+    with get_handle(
+         ^^^^^^^^^^^
+  File "/home/chenx/miniconda3/lib/python3.12/site-packages/pandas/io/common.py", line 749, in get_handle
+    check_parent_directory(str(handle))
+  File "/home/chenx/miniconda3/lib/python3.12/site-packages/pandas/io/common.py", line 615, in check_parent_directory
+    if not parent.is_dir():
+           ^^^^^^^^^^^^^^^
+  File "/home/chenx/miniconda3/lib/python3.12/pathlib.py", line 875, in is_dir
+    return S_ISDIR(self.stat().st_mode)
+                   ^^^^^^^^^^^
+  File "/home/chenx/miniconda3/lib/python3.12/pathlib.py", line 840, in stat
+    return os.stat(self, follow_symlinks=follow_symlinks)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+PermissionError: [Errno 13] Permission denied: '/mnt/dataset4/cx/code/EEG_LLM_text/Workload_basic/sub_11'
+--------------------------------------------------------------------------------
+/mnt/dataset4/cx/code/EEG_LLM_text/Workload_basic/sub_11/merged_segment_0752.csv
+Traceback (most recent call last):
+  File "/mnt/dataset4/cx/code/EEG_LLM_text/merged_segment_extraction.py", line 202, in _process_merged_segment_task
+    df = df[meta_cols + feature_cols]
+  File "/home/chenx/miniconda3/lib/python3.12/site-packages/pandas/util/_decorators.py", line 333, in wrapper
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/chenx/miniconda3/lib/python3.12/site-packages/pandas/core/generic.py", line 3967, in to_csv
+    return DataFrameRenderer(formatter).to_csv(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/chenx/miniconda3/lib/python3.12/site-packages/pandas/io/formats/format.py", line 1014, in to_csv
+    csv_formatter.save()
+  File "/home/chenx/miniconda3/lib/python3.12/site-packages/pandas/io/formats/csvs.py", line 251, in save
+    with get_handle(
+         ^^^^^^^^^^^
+  File "/home/chenx/miniconda3/lib/python3.12/site-packages/pandas/io/common.py", line 749, in get_handle
+    check_parent_directory(str(handle))
+  File "/home/chenx/miniconda3/lib/python3.12/site-packages/pandas/io/common.py", line 615, in check_parent_directory
+    if not parent.is_dir():
+           ^^^^^^^^^^^^^^^
+  File "/home/chenx/miniconda3/lib/python3.12/pathlib.py", line 875, in is_dir
+    return S_ISDIR(self.stat().st_mode)
+                   ^^^^^^^^^^^
+  File "/home/chenx/miniconda3/lib/python3.12/pathlib.py", line 840, in stat
+    return os.stat(self, follow_symlinks=follow_symlinks)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+PermissionError: [Errno 13] Permission denied: '/mnt/dataset4/cx/code/EEG_LLM_text/Workload_basic/sub_11'
+--------------------------------------------------------------------------------
+/mnt/dataset4/cx/code/EEG_LLM_text/Workload_basic/sub_11/merged_segment_0763.csv
+Traceback (most recent call last):
+  File "/mnt/dataset4/cx/code/EEG_LLM_text/merged_segment_extraction.py", line 202, in _process_merged_segment_task
+    df = df[meta_cols + feature_cols]
+  File "/home/chenx/miniconda3/lib/python3.12/site-packages/pandas/util/_decorators.py", line 333, in wrapper
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/chenx/miniconda3/lib/python3.12/site-packages/pandas/core/generic.py", line 3967, in to_csv
+    return DataFrameRenderer(formatter).to_csv(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/chenx/miniconda3/lib/python3.12/site-packages/pandas/io/formats/format.py", line 1014, in to_csv
+    csv_formatter.save()
+  File "/home/chenx/miniconda3/lib/python3.12/site-packages/pandas/io/formats/csvs.py", line 251, in save
+    with get_handle(
+         ^^^^^^^^^^^
+  File "/home/chenx/miniconda3/lib/python3.12/site-packages/pandas/io/common.py", line 749, in get_handle
+    check_parent_directory(str(handle))
+  File "/home/chenx/miniconda3/lib/python3.12/site-packages/pandas/io/common.py", line 615, in check_parent_directory
+    if not parent.is_dir():
+           ^^^^^^^^^^^^^^^
+  File "/home/chenx/miniconda3/lib/python3.12/pathlib.py", line 875, in is_dir
+    return S_ISDIR(self.stat().st_mode)
+                   ^^^^^^^^^^^
+  File "/home/chenx/miniconda3/lib/python3.12/pathlib.py", line 840, in stat
+    return os.stat(self, follow_symlinks=follow_symlinks)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+PermissionError: [Errno 13] Permission denied: '/mnt/dataset4/cx/code/EEG_LLM_text/Workload_basic/sub_11'
+--------------------------------------------------------------------------------
+/mnt/dataset4/cx/code/EEG_LLM_text/Workload_basic/sub_11/merged_segment_0754.csv
+Traceback (most recent call last):
+  File "/mnt/dataset4/cx/code/EEG_LLM_text/merged_segment_extraction.py", line 202, in _process_merged_segment_task
+    df = df[meta_cols + feature_cols]
+  File "/home/chenx/miniconda3/lib/python3.12/site-packages/pandas/util/_decorators.py", line 333, in wrapper
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/chenx/miniconda3/lib/python3.12/site-packages/pandas/core/generic.py", line 3967, in to_csv
+    return DataFrameRenderer(formatter).to_csv(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/chenx/miniconda3/lib/python3.12/site-packages/pandas/io/formats/format.py", line 1014, in to_csv
+    csv_formatter.save()
+  File "/home/chenx/miniconda3/lib/python3.12/site-packages/pandas/io/formats/csvs.py", line 251, in save
+    with get_handle(
+         ^^^^^^^^^^^
+  File "/home/chenx/miniconda3/lib/python3.12/site-packages/pandas/io/common.py", line 749, in get_handle
+    check_parent_directory(str(handle))
+  File "/home/chenx/miniconda3/lib/python3.12/site-packages/pandas/io/common.py", line 615, in check_parent_directory
+    if not parent.is_dir():
+           ^^^^^^^^^^^^^^^
+  File "/home/chenx/miniconda3/lib/python3.12/pathlib.py", line 875, in is_dir
+    return S_ISDIR(self.stat().st_mode)
+                   ^^^^^^^^^^^
+  File "/home/chenx/miniconda3/lib/python3.12/pathlib.py", line 840, in stat
+    return os.stat(self, follow_symlinks=follow_symlinks)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+PermissionError: [Errno 13] Permission denied: '/mnt/dataset4/cx/code/EEG_LLM_text/Workload_basic/sub_11'
+--------------------------------------------------------------------------------
+/mnt/dataset4/cx/code/EEG_LLM_text/Workload_basic/sub_11/merged_segment_0756.csv
+Traceback (most recent call last):
+  File "/mnt/dataset4/cx/code/EEG_LLM_text/merged_segment_extraction.py", line 202, in _process_merged_segment_task
+    df = df[meta_cols + feature_cols]
+  File "/home/chenx/miniconda3/lib/python3.12/site-packages/pandas/util/_decorators.py", line 333, in wrapper
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/chenx/miniconda3/lib/python3.12/site-packages/pandas/core/generic.py", line 3967, in to_csv
+    return DataFrameRenderer(formatter).to_csv(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/chenx/miniconda3/lib/python3.12/site-packages/pandas/io/formats/format.py", line 1014, in to_csv
+    csv_formatter.save()
+  File "/home/chenx/miniconda3/lib/python3.12/site-packages/pandas/io/formats/csvs.py", line 251, in save
+    with get_handle(
+         ^^^^^^^^^^^
+  File "/home/chenx/miniconda3/lib/python3.12/site-packages/pandas/io/common.py", line 749, in get_handle
+    check_parent_directory(str(handle))
+  File "/home/chenx/miniconda3/lib/python3.12/site-packages/pandas/io/common.py", line 615, in check_parent_directory
+    if not parent.is_dir():
+           ^^^^^^^^^^^^^^^
+  File "/home/chenx/miniconda3/lib/python3.12/pathlib.py", line 875, in is_dir
+    return S_ISDIR(self.stat().st_mode)
+                   ^^^^^^^^^^^
+  File "/home/chenx/miniconda3/lib/python3.12/pathlib.py", line 840, in stat
+    return os.stat(self, follow_symlinks=follow_symlinks)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+PermissionError: [Errno 13] Permission denied: '/mnt/dataset4/cx/code/EEG_LLM_text/Workload_basic/sub_11'
+--------------------------------------------------------------------------------
+/mnt/dataset4/cx/code/EEG_LLM_text/Workload_basic/sub_11/merged_segment_0760.csv
+Traceback (most recent call last):
+  File "/mnt/dataset4/cx/code/EEG_LLM_text/merged_segment_extraction.py", line 202, in _process_merged_segment_task
+    df = df[meta_cols + feature_cols]
+  File "/home/chenx/miniconda3/lib/python3.12/site-packages/pandas/util/_decorators.py", line 333, in wrapper
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/chenx/miniconda3/lib/python3.12/site-packages/pandas/core/generic.py", line 3967, in to_csv
+    return DataFrameRenderer(formatter).to_csv(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/chenx/miniconda3/lib/python3.12/site-packages/pandas/io/formats/format.py", line 1014, in to_csv
+    csv_formatter.save()
+  File "/home/chenx/miniconda3/lib/python3.12/site-packages/pandas/io/formats/csvs.py", line 251, in save
+    with get_handle(
+         ^^^^^^^^^^^
+  File "/home/chenx/miniconda3/lib/python3.12/site-packages/pandas/io/common.py", line 749, in get_handle
+    check_parent_directory(str(handle))
+  File "/home/chenx/miniconda3/lib/python3.12/site-packages/pandas/io/common.py", line 615, in check_parent_directory
+    if not parent.is_dir():
+           ^^^^^^^^^^^^^^^
+  File "/home/chenx/miniconda3/lib/python3.12/pathlib.py", line 875, in is_dir
+    return S_ISDIR(self.stat().st_mode)
+                   ^^^^^^^^^^^
+  File "/home/chenx/miniconda3/lib/python3.12/pathlib.py", line 840, in stat
+    return os.stat(self, follow_symlinks=follow_symlinks)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+PermissionError: [Errno 13] Permission denied: '/mnt/dataset4/cx/code/EEG_LLM_text/Workload_basic/sub_11'
+--------------------------------------------------------------------------------
+/mnt/dataset4/cx/code/EEG_LLM_text/Workload_basic/sub_11/merged_segment_0767.csv
+Traceback (most recent call last):
+  File "/mnt/dataset4/cx/code/EEG_LLM_text/merged_segment_extraction.py", line 202, in _process_merged_segment_task
+    df = df[meta_cols + feature_cols]
+  File "/home/chenx/miniconda3/lib/python3.12/site-packages/pandas/util/_decorators.py", line 333, in wrapper
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/chenx/miniconda3/lib/python3.12/site-packages/pandas/core/generic.py", line 3967, in to_csv
+    return DataFrameRenderer(formatter).to_csv(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/chenx/miniconda3/lib/python3.12/site-packages/pandas/io/formats/format.py", line 1014, in to_csv
+    csv_formatter.save()
+  File "/home/chenx/miniconda3/lib/python3.12/site-packages/pandas/io/formats/csvs.py", line 251, in save
+    with get_handle(
+         ^^^^^^^^^^^
+  File "/home/chenx/miniconda3/lib/python3.12/site-packages/pandas/io/common.py", line 749, in get_handle
+    check_parent_directory(str(handle))
+  File "/home/chenx/miniconda3/lib/python3.12/site-packages/pandas/io/common.py", line 615, in check_parent_directory
+    if not parent.is_dir():
+           ^^^^^^^^^^^^^^^
+  File "/home/chenx/miniconda3/lib/python3.12/pathlib.py", line 875, in is_dir
+    return S_ISDIR(self.stat().st_mode)
+                   ^^^^^^^^^^^
+  File "/home/chenx/miniconda3/lib/python3.12/pathlib.py", line 840, in stat
+    return os.stat(self, follow_symlinks=follow_symlinks)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+PermissionError: [Errno 13] Permission denied: '/mnt/dataset4/cx/code/EEG_LLM_text/Workload_basic/sub_11'
+--------------------------------------------------------------------------------

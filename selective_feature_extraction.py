@@ -188,15 +188,22 @@ for group, features in FEATURE_GROUPS.items():
 PRESETS = {
     'fast': {
         'description': '快速模式 - 仅计算高效特征（排除熵、网络、PLV特征）',
-        'groups': ['time_domain', 'frequency_domain', 'composite', 'microstate'],
+        'groups': ['microstate'],
         'exclude_features': [],
     },
     'standard': {
         'description': '标准模式 - 排除最耗时的特征（sample_entropy、approx_entropy、PLV、network）',
-        'groups': ['time_domain', 'frequency_domain', 'complexity', 'connectivity', 'composite', 'de_features'],
-        'exclude_features': ['sample_entropy', 'approx_entropy',
-                             'plv_theta_mean', 'plv_alpha_mean', 'plv_beta_mean', 'plv_gamma_mean',
-                             'plv_theta_interhemispheric', 'plv_alpha_interhemispheric'],
+        'groups': ['time_domain','frequency_domain', 'composite', 'de_features','microstate'],
+        'include_features': [
+            'wavelet_energy_entropy',' hurst_exponent','higuchi_fd',
+        'katz_fd',
+        'petrosian_fd','network_clustering_coefficient','network_characteristic_path_length','network_global_efficiency','plv_theta_mean',
+        'plv_alpha_mean',
+        'plv_beta_mean',
+        'plv_gamma_mean',
+        ],
+        'exclude_features': ['sample_entropy', 'approx_entropy'],
+
     },
     'full': {
         'description': '完整模式 - 计算所有特征（包括DE、PLV、分形维数等）',
@@ -205,14 +212,12 @@ PRESETS = {
     },
     'basic': {
         'description': '基础模式 - 仅计算时域和频率功率特征',
-        'groups': ['time_domain'],
+        'groups': ['time_domain','frequency_domain', 'composite', 'de_features','connectivity','microstate'],
         'include_features': [
-            'delta_power', 'theta_power', 'alpha_power',
-            'beta_power', 'gamma_power', 'low_gamma_power', 'high_gamma_power',
-            'delta_relative_power', 'theta_relative_power', 'alpha_relative_power',
-            'beta_relative_power', 'gamma_relative_power',
-            'theta_beta_ratio', 'mean_total_power',
-        ],
+            'wavelet_energy_entropy',' hurst_exponent','higuchi_fd',
+        'katz_fd',
+        'petrosian_fd','network_clustering_coefficient','network_characteristic_path_length','network_global_efficiency',
+        ],'exclude_features': ['sample_entropy', 'approx_entropy'],
     },
     'emotion': {
         'description': '情绪分析模式 - 常用于情绪识别的特征（包括DE和FAA）',
@@ -241,7 +246,7 @@ PRESETS = {
     'groups': [
         'time_domain',
         'frequency_domain',
-        'composite'
+        'composite','microstate'
     ],
     'include_features': [
 

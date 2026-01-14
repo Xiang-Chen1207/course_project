@@ -9,11 +9,13 @@
 - 支持多CPU并行处理
 
 使用方法：
+  python merged_segment_extraction.py -i /mnt/dataset2/hdf5_datasets/Workload_MATB -o /mnt/dataset4/cx/code/EEG_LLM_text/Workload_basic --merge-count 1 --preset basic --microstate-segs 20
+  python merged_segment_extraction.py -i /mnt/dataset2/hdf5_datasets/SEED -o /mnt/dataset4/cx/code/EEG_LLM_text/SEED_basic --merge-count 1 --preset basic --microstate-segs 20
     # 每15个segment合并成1个（默认按trial内合并）
     python merged_segment_extraction.py -i /mnt/dataset2/hdf5_datasets/Workload_MATB -o /mnt/dataset4/cx/code/EEG_LLM_text/Workload_new_full --merge-count 1
     python merged_segment_extraction.py -i /mnt/dataset2/hdf5_datasets/SEED -o /mnt/dataset4/cx/code/EEG_LLM_text/SEED_2s_full --merge-count 1 --preset full
     python merged_segment_extraction.py -i /mnt/dataset2/hdf5_datasets/Workload_MATB -o /mnt/dataset4/cx/code/EEG_LLM_text/Workload_output_30s --merge-count 15 --preset fast
-    python merged_segment_extraction.py -i /mnt/dataset2/hdf5_datasets/SleepEDF -o /mnt/dataset4/cx/code/EEG_LLM_text/SleepEDF_output_new_sleep --merge-count 1 --preset sleep
+    python merged_segment_extraction.py -i /mnt/dataset2/hdf5_datasets/SleepEDF -o /mnt/dataset4/cx/code/EEG_LLM_text/SleepEDF_basic --merge-count 1 --preset sleep --microstate-segs 500
     # 每3个segment合并，跨trial合并
     python merged_segment_extraction.py -i data.h5 -o ./output --merge-count 3 --cross-trial
 
@@ -301,25 +303,32 @@ class MergedSegmentExtractor:
 
         # 提取特征
         all_features = {}
+
+        # 改为“单特征粒度”的超时控制：每个特征单独执行 compute，并各自套 30s 保护
         for group_name, computer in self.feature_computers.items():
-            try:
-                if group_name == 'microstate':
-                    group_features = self._run_with_timeout(
-                        computer.compute, self.FEATURE_TIMEOUT_SEC,
-                        eeg_data, psd_result=psd_result,
-                        microstate_analyzer=microstate_analyzer
-                    )
-                else:
-                    group_features = self._run_with_timeout(
-                        computer.compute, self.FEATURE_TIMEOUT_SEC,
-                        eeg_data, psd_result=psd_result
-                    )
-                # 只保留选定的特征
-                for name, value in group_features.items():
-                    if name in final_features:
-                        all_features[name] = value
-            except Exception as e:
-                warnings.warn(f"计算特征组 '{group_name}' 时出错或超时: {e}")
+            group_feature_names = [f for f in computer.get_feature_names() if f in final_features]
+            if not group_feature_names:
+                continue
+
+            for feat_name in group_feature_names:
+                try:
+                    if group_name == 'microstate':
+                        def _task():
+                            res = computer.compute(
+                                eeg_data, psd_result=psd_result,
+                                microstate_analyzer=microstate_analyzer
+                            )
+                            return res.get(feat_name, None)
+                    else:
+                        def _task():
+                            res = computer.compute(eeg_data, psd_result=psd_result)
+                            return res.get(feat_name, None)
+
+                    value = self._run_with_timeout(_task, self.FEATURE_TIMEOUT_SEC)
+                    if value is not None:
+                        all_features[feat_name] = value
+                except Exception as e:
+                    warnings.warn(f"计算特征 '{feat_name}' 时出错或超时: {e}")
 
         return all_features
 

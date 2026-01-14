@@ -10,20 +10,29 @@ EEG 特征计算性能基准测试脚本
 - 识别计算瓶颈
 
 使用方法：
+python benchmark_features.py --data-path /mnt/dataset2/hdf5_datasets/SEED/sub_2.h5  --num-segments 1 --benchmark-presets --preset-names basic --skip-default-suite
     python benchmark_features.py [--data-path PATH] [--no-gpu] [--iterations N] [--num-segments M]
-
+  python benchmark_features.py --data-path /mnt/dataset2/hdf5_datasets/Workload_MATB/sub_4.h5  --num-segments 1 --benchmark-presets --preset-names basic --skip-default-suite
+  python benchmark_features.py --data-path /mnt/dataset2/hdf5_datasets/SleepEDF/sub_2.h5  --num-segments 1 --benchmark-presets --preset-names basic --skip-default-suite
+示例：
 示例：
     # 使用真实数据测试单个 segment
     python benchmark_features.py --data-path /mnt/dataset2/hdf5_datasets/SleepEDF/sub_2.h5
 
     # 使用真实数据测试 5 个 segment 合并
     python benchmark_features.py --data-path /mnt/dataset2/hdf5_datasets/SEED/sub_2.h5 --num-segments 1
+    python benchmark_features.py --data-path /mnt/dataset2/hdf5_datasets/Workload_MATB/sub_4.h5 --num-segments 1
+    python benchmark_features.py --data-path /mnt/dataset2/hdf5_datasets/SleepEDF/sub_3.h5 --num-segments 1
 
     # 使用真实数据测试不同 segment 数量的性能对比
     python benchmark_features.py --data-path /path/to/subject.h5 --num-segments 1,2,5,10
 
     # 使用模拟数据测试（不指定 --data-path）
     python benchmark_features.py --segment-length 2.0 --num-segments 1,2,5,10
+    only
+    python benchmark_features.py --data-path /mnt/dataset2/hdf5_datasets/SleepEDF/sub_3.h5 --num-segments 1 --benchmark-microstate --microstate-template-per-trial 2000 --skip-default-suite
+    python benchmark_features.py --data-path /path/to/sub_2.h5 --num-segments 1 --benchmark-presets --preset-names fast --skip-default-suite
+
 """
 
 import sys
@@ -31,9 +40,10 @@ import os
 import time
 import argparse
 import numpy as np
-from typing import Dict, List, Tuple, Optional
+from typing import Dict, List, Tuple, Optional, Any
 from dataclasses import dataclass
 import signal
+import copy
 
 # 添加项目路径
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -41,7 +51,13 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from eeg_feature_extraction.config import Config
 from eeg_feature_extraction.psd_computer import PSDComputer
 from eeg_feature_extraction.data_loader import EEGDataLoader
-from selective_feature_extraction import FEATURE_GROUPS
+from eeg_feature_extraction.features.microstate import MicrostateAnalyzer, MicrostateFeatures
+from selective_feature_extraction import (
+    FEATURE_GROUPS,
+    PRESETS,
+    FeatureSelectionConfig,
+    SelectiveFeatureExtractor,
+)
 
 
 @dataclass
@@ -111,8 +127,70 @@ def generate_synthetic_eeg(config: Config, num_segments: int = 1) -> np.ndarray:
     return eeg_data
 
 
+def build_microstate_template(data_path: str, segments_per_trial: Optional[int] = None,
+                              verbose: bool = True) -> MicrostateAnalyzer:
+    """从被试所有 trial 的若干 segment 构建微状态模板。
+
+    Args:
+        data_path: HDF5 文件路径
+        segments_per_trial: 每个 trial 采样的 segment 数量；None/0 表示使用全部
+        verbose: 是否打印进度
+    Returns:
+        训练好的 MicrostateAnalyzer
+    """
+    loader = EEGDataLoader(data_path)
+    analyzer = MicrostateAnalyzer(n_states=4)
+
+    if verbose:
+        if segments_per_trial and segments_per_trial > 0:
+            print(f"正在生成 microstate 模板（每个 trial 随机选 {segments_per_trial} 个 segments）...")
+        else:
+            print("正在生成 microstate 模板（使用所有 segments）...")
+
+    all_peak_maps: List[np.ndarray] = []
+    n_segments_used = 0
+    n_segments_total = 0
+    n_peak_maps = 0
+    n_trials = 0
+
+    trial_names = loader.get_trial_names()
+    for trial_idx, trial_name in enumerate(trial_names):
+        segment_names = loader.get_segment_names(trial_name)
+        n_trials += 1
+        n_segments_total += len(segment_names)
+
+        if segments_per_trial and segments_per_trial > 0 and len(segment_names) > segments_per_trial:
+            rng = np.random.default_rng(seed=42 + trial_idx)
+            selected_indices = rng.choice(len(segment_names), size=segments_per_trial, replace=False)
+            selected_segment_names = [segment_names[i] for i in sorted(selected_indices)]
+        else:
+            selected_segment_names = segment_names
+
+        for seg_name in selected_segment_names:
+            segment = loader.get_segment(trial_name, seg_name)
+            data = segment.eeg_data
+            gfp = analyzer.compute_gfp(data)
+            peak_indices = analyzer.find_gfp_peaks(gfp)
+            peak_maps = data[:, peak_indices].T
+            if peak_maps.size > 0:
+                all_peak_maps.append(peak_maps)
+                n_peak_maps += peak_maps.shape[0]
+            n_segments_used += 1
+
+    if n_segments_used == 0 or n_peak_maps == 0:
+        raise ValueError("没有有效的 segment 峰值地形图用于微状态模板生成")
+
+    combined_maps = np.vstack(all_peak_maps)
+    analyzer.centroids = analyzer._polarity_invariant_kmeans(combined_maps)
+
+    if verbose:
+        print(f"  微状态模板完成：trials={n_trials}, segments_used={n_segments_used}/{n_segments_total}, peak_maps={n_peak_maps}")
+
+    return analyzer
+
+
 def load_real_eeg_data(data_path: str, num_segments: int,
-                       trial_name: Optional[str] = None) -> Tuple[np.ndarray, float, int]:
+                       trial_name: Optional[str] = None) -> Tuple[np.ndarray, float, int, Any]:
     """
     从 HDF5 文件加载真实 EEG 数据并合并多个 segment
 
@@ -122,7 +200,7 @@ def load_real_eeg_data(data_path: str, num_segments: int,
         trial_name: 指定的 trial 名称，如果为 None 则使用第一个 trial
 
     Returns:
-        (合并后的 EEG 数据, segment 长度, 实际合并的 segment 数量)
+        (合并后的 EEG 数据, segment 长度, 实际合并的 segment 数量, subject_info)
         EEG 数据 shape: (n_channels, n_timepoints * num_segments)
     """
     loader = EEGDataLoader(data_path)
@@ -169,7 +247,7 @@ def load_real_eeg_data(data_path: str, num_segments: int,
     print(f"  数据形状: {merged_data.shape}")
     print(f"  采样率: {subject_info.sampling_rate} Hz")
 
-    return merged_data, segment_length, actual_num_segments
+    return merged_data, segment_length, actual_num_segments, subject_info
 
 
 def benchmark_time_domain(eeg_data: np.ndarray, config: Config,
@@ -646,6 +724,125 @@ def benchmark_plv(eeg_data: np.ndarray, config: Config,
     return results
 
 
+def benchmark_microstate(eeg_data: np.ndarray, config: Config,
+                         microstate_analyzer: MicrostateAnalyzer,
+                         iterations: int = 3) -> List[BenchmarkResult]:
+    """测试微状态特征（依赖预先构建的模板）"""
+
+    results: List[BenchmarkResult] = []
+    computer = MicrostateFeatures(config)
+
+    times = []
+    timed_out = False
+    for i in range(iterations):
+        try:
+            start = time.perf_counter()
+            _run_with_timeout(
+                computer.compute,
+                120,
+                eeg_data,
+                psd_result=None,
+                microstate_analyzer=microstate_analyzer,
+            )
+            end = time.perf_counter()
+            times.append((end - start) * 1000)
+            print(f"    微状态迭代 {i+1}: {times[-1]:.1f} ms")
+        except TimeoutError:
+            timed_out = True
+            print("  [跳过] microstate 超过120s，已跳过后续迭代")
+            break
+
+    if times:
+        results.append(BenchmarkResult(
+            feature_name="[all_microstate_features]",
+            category="microstate",
+            mean_time_ms=np.mean(times),
+            std_time_ms=np.std(times),
+            min_time_ms=np.min(times),
+            max_time_ms=np.max(times)
+        ))
+    elif timed_out:
+        results.append(BenchmarkResult(
+            feature_name="[all_microstate_features]",
+            category="microstate",
+            mean_time_ms=float('nan'),
+            std_time_ms=float('nan'),
+            min_time_ms=float('nan'),
+            max_time_ms=float('nan')
+        ))
+
+    return results
+
+
+# ====================
+# 预设组合基准测试
+# ====================
+def _selection_config_from_preset(preset_name: str) -> FeatureSelectionConfig:
+    preset = PRESETS[preset_name]
+    return FeatureSelectionConfig(
+        selected_features=set(preset.get('include_features', [])),
+        selected_groups=set(preset.get('groups', [])),
+        excluded_features=set(preset.get('exclude_features', [])),
+    )
+
+
+def benchmark_presets(eeg_data: np.ndarray, config: Config,
+                      iterations: int = 3, preset_names: Optional[List[str]] = None
+                      ) -> List[BenchmarkResult]:
+    """测试 selective_feature_extraction 里的预设组合耗时"""
+
+    results: List[BenchmarkResult] = []
+    names = preset_names or list(PRESETS.keys())
+
+    for name in names:
+        if name not in PRESETS:
+            print(f"  [跳过] 未知预设: {name}")
+            continue
+
+        selection_config = _selection_config_from_preset(name)
+        # 深拷贝 config，避免修改主配置
+        preset_config = copy.deepcopy(config)
+        extractor = SelectiveFeatureExtractor(preset_config, selection_config)
+
+        selected = extractor.get_selected_features()
+        print(f"  预设 {name}: 选中特征 {len(selected)} 个")
+
+        times = []
+        timed_out = False
+        for i in range(iterations):
+            try:
+                start = time.perf_counter()
+                _run_with_timeout(extractor.extract_features, 120, eeg_data)
+                end = time.perf_counter()
+                times.append((end - start) * 1000)
+                print(f"    迭代 {i+1}: {times[-1]:.1f} ms")
+            except TimeoutError:
+                timed_out = True
+                print(f"  [跳过] preset {name} 超过120s，已跳过后续迭代")
+                break
+
+        if times:
+            results.append(BenchmarkResult(
+                feature_name=f"[preset_{name}]",
+                category="preset",
+                mean_time_ms=np.mean(times),
+                std_time_ms=np.std(times),
+                min_time_ms=np.min(times),
+                max_time_ms=np.max(times)
+            ))
+        elif timed_out:
+            results.append(BenchmarkResult(
+                feature_name=f"[preset_{name}]",
+                category="preset",
+                mean_time_ms=float('nan'),
+                std_time_ms=float('nan'),
+                min_time_ms=float('nan'),
+                max_time_ms=float('nan')
+            ))
+
+    return results
+
+
 def benchmark_fractal_dimensions(eeg_data: np.ndarray, config: Config,
                                   iterations: int = 5) -> List[BenchmarkResult]:
     """测试分形维数特征 (Higuchi, Katz, Petrosian)"""
@@ -752,7 +949,7 @@ def print_results(results: List[BenchmarkResult], segment_length: float,
     # 按类别分组
     categories = ['preprocessing', 'time_domain', 'frequency_domain',
                   'complexity', 'connectivity', 'network', 'composite',
-                  'de_features', 'fractal_dimension', 'plv']
+                  'de_features', 'fractal_dimension', 'plv', 'microstate', 'preset']
     category_names = {
         'preprocessing': 'PSD 预处理',
         'time_domain': '时域特征',
@@ -764,6 +961,8 @@ def print_results(results: List[BenchmarkResult], segment_length: float,
         'de_features': '微分熵特征 (DE/DASM/RASM/DCAU/FAA)',
         'fractal_dimension': '分形维数 (Higuchi/Katz/Petrosian)',
         'plv': '相位锁定值 (PLV)',
+        'microstate': '微状态特征',
+        'preset': '预设组合 (selective_feature_extraction)'
     }
 
     total_time = 0.0
@@ -844,7 +1043,13 @@ def print_results(results: List[BenchmarkResult], segment_length: float,
 
 def run_benchmark_for_segments(config: Config, num_segments: int,
                                 iterations: int,
-                                data_path: Optional[str] = None) -> Tuple[List[BenchmarkResult], int]:
+                                data_path: Optional[str] = None,
+                                benchmark_presets_flag: bool = False,
+                                preset_names: Optional[List[str]] = None,
+                                benchmark_microstate_flag: bool = False,
+                                microstate_segments_per_trial: Optional[int] = None,
+                                skip_default_suite: bool = False
+                                ) -> Tuple[List[BenchmarkResult], int]:
     """
     对指定数量的 segments 运行基准测试
 
@@ -853,6 +1058,7 @@ def run_benchmark_for_segments(config: Config, num_segments: int,
         num_segments: segment 数量
         iterations: 迭代次数
         data_path: HDF5 数据文件路径，如果为 None 则使用模拟数据
+        skip_default_suite: 仅运行微状态/预设，跳过默认基准套件
 
     Returns:
         (基准测试结果列表, 实际使用的 segment 数量)
@@ -865,11 +1071,14 @@ def run_benchmark_for_segments(config: Config, num_segments: int,
     if data_path:
         # 使用真实数据
         print("加载真实 EEG 数据...")
-        eeg_data, segment_length, actual_num_segments = load_real_eeg_data(
+        eeg_data, segment_length, actual_num_segments, subject_info = load_real_eeg_data(
             data_path, num_segments
         )
-        # 更新配置中的 segment_length
+        # 更新配置：通道、采样率、segment_length、n_timepoints
+        config.update_from_electrode_names(subject_info.channel_names)
+        config.sampling_rate = subject_info.sampling_rate
         config.segment_length = segment_length
+        config.n_timepoints = int(config.segment_length * config.sampling_rate)
     else:
         # 使用模拟数据
         actual_num_segments = num_segments
@@ -885,60 +1094,84 @@ def run_benchmark_for_segments(config: Config, num_segments: int,
     print(f"  - 合并后总长度: {total_length:.2f}s ({total_timepoints} 时间点)")
     print()
 
-    # 预计算 PSD
-    print("\n预计算 PSD...")
-    psd_computer = PSDComputer(
-        sampling_rate=config.sampling_rate,
-        use_gpu=config.use_gpu,
-        nperseg=config.nperseg,
-        noverlap=config.noverlap,
-        nfft=config.nfft
-    )
-    psd_result = psd_computer.compute_psd(eeg_data)
-    print("  PSD 计算完成")
+    if skip_default_suite and not (benchmark_microstate_flag or benchmark_presets_flag):
+        print("  [提示] 已跳过默认基准套件，且未选择微状态/预设，当前配置不会运行任何基准测试")
+
+    psd_result = None
+    if not skip_default_suite:
+        print("\n预计算 PSD...")
+        psd_computer = PSDComputer(
+            sampling_rate=config.sampling_rate,
+            use_gpu=config.use_gpu,
+            nperseg=config.nperseg,
+            noverlap=config.noverlap,
+            nfft=config.nfft
+        )
+        psd_result = psd_computer.compute_psd(eeg_data)
+        print("  PSD 计算完成")
 
     # 运行基准测试
     all_results = []
+    microstate_analyzer = None
 
-    print("\n" + "-" * 40)
-    print("测试 PSD 计算...")
-    all_results.extend(benchmark_psd_computation(eeg_data, config, iterations))
+    if not skip_default_suite:
+        print("\n" + "-" * 40)
+        print("测试 PSD 计算...")
+        all_results.extend(benchmark_psd_computation(eeg_data, config, iterations))
 
-    print("\n" + "-" * 40)
-    print("测试时域特征...")
-    all_results.extend(benchmark_time_domain(eeg_data, config, iterations))
+        print("\n" + "-" * 40)
+        print("测试时域特征...")
+        all_results.extend(benchmark_time_domain(eeg_data, config, iterations))
 
-    print("\n" + "-" * 40)
-    print("测试频域特征...")
-    all_results.extend(benchmark_frequency_domain(eeg_data, psd_result, config, iterations))
+        print("\n" + "-" * 40)
+        print("测试频域特征...")
+        all_results.extend(benchmark_frequency_domain(eeg_data, psd_result, config, iterations))
 
-    print("\n" + "-" * 40)
-    print("测试复杂度特征...")
-    all_results.extend(benchmark_complexity(eeg_data, config, iterations))
+        print("\n" + "-" * 40)
+        print("测试复杂度特征...")
+        all_results.extend(benchmark_complexity(eeg_data, config, iterations))
 
-    print("\n" + "-" * 40)
-    print("测试连接性特征...")
-    all_results.extend(benchmark_connectivity(eeg_data, psd_result, config, iterations))
+        print("\n" + "-" * 40)
+        print("测试连接性特征...")
+        all_results.extend(benchmark_connectivity(eeg_data, psd_result, config, iterations))
 
-    print("\n" + "-" * 40)
-    print("测试网络特征...")
-    all_results.extend(benchmark_network(eeg_data, config, iterations))
+        print("\n" + "-" * 40)
+        print("测试网络特征...")
+        all_results.extend(benchmark_network(eeg_data, config, iterations))
 
-    print("\n" + "-" * 40)
-    print("测试综合特征...")
-    all_results.extend(benchmark_composite(eeg_data, psd_result, config, iterations))
+        print("\n" + "-" * 40)
+        print("测试综合特征...")
+        all_results.extend(benchmark_composite(eeg_data, psd_result, config, iterations))
 
-    print("\n" + "-" * 40)
-    print("测试 DE 特征（微分熵、DASM、RASM、DCAU、FAA）...")
-    all_results.extend(benchmark_de_features(eeg_data, psd_result, config, iterations))
+        print("\n" + "-" * 40)
+        print("测试 DE 特征（微分熵、DASM、RASM、DCAU、FAA）...")
+        all_results.extend(benchmark_de_features(eeg_data, psd_result, config, iterations))
 
-    print("\n" + "-" * 40)
-    print("测试分形维数特征...")
-    all_results.extend(benchmark_fractal_dimensions(eeg_data, config, iterations))
+        print("\n" + "-" * 40)
+        print("测试分形维数特征...")
+        all_results.extend(benchmark_fractal_dimensions(eeg_data, config, iterations))
 
-    print("\n" + "-" * 40)
-    print("测试 PLV 特征...")
-    all_results.extend(benchmark_plv(eeg_data, config, iterations))
+        print("\n" + "-" * 40)
+        print("测试 PLV 特征...")
+        all_results.extend(benchmark_plv(eeg_data, config, iterations))
+
+    if benchmark_microstate_flag and data_path:
+        print("\n" + "-" * 40)
+        print("构建微状态模板并测试微状态特征...")
+        try:
+            microstate_analyzer = build_microstate_template(
+                data_path,
+                segments_per_trial=microstate_segments_per_trial,
+                verbose=True,
+            )
+            all_results.extend(benchmark_microstate(eeg_data, config, microstate_analyzer, iterations))
+        except Exception as e:
+            print(f"  [跳过] 微状态模板构建失败: {e}")
+
+    if benchmark_presets_flag:
+        print("\n" + "-" * 40)
+        print("测试预设组合特征 (selective_feature_extraction)...")
+        all_results.extend(benchmark_presets(eeg_data, config, iterations, preset_names))
 
     # 直接打印本轮所有特征的耗时，顺序与计算顺序一致，便于筛掉慢特征
     print("\n" + "=" * 80)
@@ -988,7 +1221,7 @@ def print_comparison_results(all_segment_results: Dict[int, List[BenchmarkResult
 
     # 按类别汇总
     categories = ['preprocessing', 'time_domain', 'frequency_domain',
-                  'complexity', 'connectivity', 'network', 'composite']
+                  'complexity', 'connectivity', 'network', 'composite', 'microstate', 'preset']
     category_names = {
         'preprocessing': 'PSD 预处理',
         'time_domain': '时域特征',
@@ -996,7 +1229,9 @@ def print_comparison_results(all_segment_results: Dict[int, List[BenchmarkResult
         'complexity': '复杂度特征',
         'connectivity': '连接性特征',
         'network': '网络特征',
-        'composite': '综合特征'
+        'composite': '综合特征',
+        'microstate': '微状态特征',
+        'preset': '预设组合'
     }
 
     # 打印表头
@@ -1091,6 +1326,16 @@ def main():
                         help='单个 Segment 长度（秒），仅在使用模拟数据时有效')
     parser.add_argument('--num-segments', type=str, default='1',
                         help='Segment 数量，可以是单个值(如 5)或逗号分隔的多个值(如 1,2,5,10)进行对比测试')
+    parser.add_argument('--benchmark-presets', action='store_true',
+                        help='额外测试 selective_feature_extraction.py 中预设组合的耗时')
+    parser.add_argument('--preset-names', type=str, default=None,
+                        help='指定要测试的预设名称，逗号分隔；不指定则测试全部预设')
+    parser.add_argument('--benchmark-microstate', action='store_true',
+                        help='测试微状态特征，并先构建微状态模板')
+    parser.add_argument('--microstate-template-per-trial', type=int, default=None,
+                        help='微状态模板构建时每个 trial 使用的 segment 数，未指定或 0 表示用全部')
+    parser.add_argument('--skip-default-suite', action='store_true',
+                        help='跳过默认基准套件，只运行微状态/预设部分（若指定）')
     args = parser.parse_args()
 
     # 解析 segment 数量
@@ -1106,6 +1351,11 @@ def main():
         if n < 1:
             print(f"错误: segment 数量必须大于 0，收到: {n}")
             sys.exit(1)
+
+    # 解析预设名称
+    preset_names = None
+    if args.preset_names:
+        preset_names = [x.strip() for x in args.preset_names.split(',') if x.strip()]
 
     # 配置
     config = Config()
@@ -1123,6 +1373,10 @@ def main():
     if not args.data_path:
         print(f"  - 单个 Segment 长度: {args.segment_length}s ({config.n_timepoints} 时间点)")
     print(f"  - 测试 Segment 数量: {segment_counts}")
+    if args.benchmark_microstate:
+        print(f"  - 微状态模板: 每个 trial 取 {args.microstate_template_per_trial or '全部'} 个 segment")
+    if args.skip_default_suite:
+        print("  - 跳过默认基准套件，仅运行微状态/预设")
     print()
 
     # 存储所有测试结果
@@ -1132,7 +1386,15 @@ def main():
     # 对每个 segment 数量运行测试
     for num_segments in segment_counts:
         results, actual_num = run_benchmark_for_segments(
-            config, num_segments, args.iterations, args.data_path
+            config,
+            num_segments,
+            args.iterations,
+            args.data_path,
+            args.benchmark_presets,
+            preset_names,
+            args.benchmark_microstate,
+            args.microstate_template_per_trial,
+            args.skip_default_suite
         )
         actual_segment_counts[num_segments] = actual_num
         all_segment_results[actual_num] = results
