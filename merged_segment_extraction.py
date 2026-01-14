@@ -10,12 +10,13 @@
 
 使用方法：
   python merged_segment_extraction.py -i /mnt/dataset2/hdf5_datasets/Workload_MATB -o /mnt/dataset4/cx/code/EEG_LLM_text/Workload_basic --merge-count 1 --preset basic --microstate-segs 20
-  python merged_segment_extraction.py -i /mnt/dataset2/hdf5_datasets/SEED -o /mnt/dataset4/cx/code/EEG_LLM_text/SEED_basic --merge-count 1 --preset basic --microstate-segs 20
+  python merged_segment_extraction.py -i /mnt/dataset2/hdf5_datasets/SEED -o /mnt/dataset4/cx/code/EEG_LLM_text/SEED_basic --merge-count 1 --preset standard --microstate-segs 20
     # 每15个segment合并成1个（默认按trial内合并）
     python merged_segment_extraction.py -i /mnt/dataset2/hdf5_datasets/Workload_MATB -o /mnt/dataset4/cx/code/EEG_LLM_text/Workload_new_full --merge-count 1
     python merged_segment_extraction.py -i /mnt/dataset2/hdf5_datasets/SEED -o /mnt/dataset4/cx/code/EEG_LLM_text/SEED_2s_full --merge-count 1 --preset full
     python merged_segment_extraction.py -i /mnt/dataset2/hdf5_datasets/Workload_MATB -o /mnt/dataset4/cx/code/EEG_LLM_text/Workload_output_30s --merge-count 15 --preset fast
     python merged_segment_extraction.py -i /mnt/dataset2/hdf5_datasets/SleepEDF -o /mnt/dataset4/cx/code/EEG_LLM_text/SleepEDF_basic --merge-count 1 --preset sleep --microstate-segs 500
+    python merged_segment_extraction.py -i /mnt/dataset2/hdf5_datasets/SleepEDF/sub_74.h5  -o /mnt/dataset4/cx/code/EEG_LLM_text/SleepEDF_basic/sub_74 --merge-count 1 --preset sleep --microstate-segs 500
     # 每3个segment合并，跨trial合并
     python merged_segment_extraction.py -i data.h5 -o ./output --merge-count 3 --cross-trial
 
@@ -816,7 +817,10 @@ def main():
     )
 
     # 输入输出
-    parser.add_argument('-i', '--input', type=str, required=True, help='输入 HDF5 文件路径')
+    parser.add_argument(
+        '-i', '--input', type=str, required=True,
+        help='输入 HDF5 文件或目录（支持 .h5/.hdf5；目录将递归搜集所有 HDF5 文件）'
+    )
     parser.add_argument('-o', '--output', type=str, required=True, help='输出目录')
 
     # 合并选项
@@ -856,9 +860,15 @@ def main():
     # 解析输入路径列表（支持目录、通配符、单文件）
     input_path = Path(args.input)
     if input_path.is_dir():
-        h5_files = sorted(str(p) for p in input_path.glob('*.h5'))
+        patterns = ('*.h5', '*.hdf5')
+        found: Set[str] = set()
+        for pat in patterns:
+            for p in input_path.rglob(pat):
+                if p.is_file():
+                    found.add(str(p))
+        h5_files = sorted(found)
     elif '*' in args.input or '?' in args.input:
-        h5_files = sorted(str(p) for p in Path().glob(args.input))
+        h5_files = sorted(str(p) for p in Path().glob(args.input) if p.is_file())
     else:
         h5_files = [str(input_path)]
 

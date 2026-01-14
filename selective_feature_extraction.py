@@ -191,7 +191,7 @@ PRESETS = {
         'groups': ['microstate'],
         'exclude_features': [],
     },
-    'standard': {
+    's': {
         'description': '标准模式 - 排除最耗时的特征（sample_entropy、approx_entropy、PLV、network）',
         'groups': ['time_domain','frequency_domain', 'composite', 'de_features','microstate'],
         'include_features': [
@@ -217,6 +217,14 @@ PRESETS = {
             'wavelet_energy_entropy',' hurst_exponent','higuchi_fd',
         'katz_fd',
         'petrosian_fd','network_clustering_coefficient','network_characteristic_path_length','network_global_efficiency',
+        ],'exclude_features': ['sample_entropy', 'approx_entropy'],
+    },
+    'standard': { #for seed
+        'description': '基础模式 - 仅计算时域和频率功率特征',
+        'groups': ['time_domain','frequency_domain', 'composite', 'de_features','connectivity','microstate'],
+        'include_features': [
+            ' hurst_exponent',
+        'network_clustering_coefficient','network_characteristic_path_length','network_global_efficiency',
         ],'exclude_features': ['sample_entropy', 'approx_entropy'],
     },
     'emotion': {
