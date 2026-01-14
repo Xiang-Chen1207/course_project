@@ -1,45 +1,75 @@
 #!/usr/bin/env python3
 """
 Check merged_segment_*.csv files under an output directory, find missing EEG
-feature columns, recompute them from the original HDF5 dataset, and fill the
-values in-place.
+feature columns (NaN values), recompute them from the original HDF5 dataset,
+and fill the values in-place.
 
-Example (directory of many H5 files → per-file subfolders of CSVs):
+Key improvements over original version:
+- Only recomputes missing features (not all features)
+- Longer timeout for recomputation (configurable, default 90s per feature)
+- Retry mechanism for timed-out features
+- Detailed logging of which features are missing
+
+Example:
     python fill_missing_features.py \
         --input-h5-dir /mnt/dataset2/hdf5_datasets/Workload_MATB \
         --output-dir /mnt/dataset4/cx/code/EEG_LLM_text/Workload_basic \
         --merge-count 1 --preset basic --microstate-segs 20
 
-Layout assumptions (now flexible):
-- Default: output-dir contains subfolders (any name) each holding merged_segment_*.csv
-    created from one H5 whose stem matches that subfolder name (e.g., sub_1 → sub_1.h5).
+Layout assumptions:
+- output-dir contains subfolders (any name) each holding merged_segment_*.csv
+    created from one H5 whose stem matches that subfolder name (e.g., sub_1 -> sub_1.h5).
 - If no subfolders are found, but output-dir itself has merged_segment_*.csv, we treat
-    that directory as a single subject and pick the H5 automatically (single H5 in the
-    input directory or one matching the output folder name).
-- Only columns listed in REQUIRED_COLUMNS are checked/fixed. Existing values are
-    preserved; only missing/NaN cells are filled from recomputation.
-- A rebuilt all_merged_features.csv is written at the end (optional).
+    that directory as a single subject.
 """
 import argparse
 import sys
 import warnings
+import traceback
 from pathlib import Path
-from typing import Dict, List, Optional, Sequence, Tuple
+from typing import Dict, List, Optional, Set, Tuple, Any
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
+from dataclasses import dataclass
 
+import numpy as np
 import pandas as pd
+from tqdm import tqdm
 
 # Local imports: ensure project root is on path
 SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
 
-from merged_segment_extraction import (  # type: ignore
-    Config,
+from eeg_feature_extraction.config import Config, FrequencyBands, ChannelGroups
+from eeg_feature_extraction.psd_computer import PSDComputer, PSDResult
+from eeg_feature_extraction.data_loader import EEGDataLoader, SegmentData
+from eeg_feature_extraction.features.base import BaseFeature, FeatureRegistry
+from eeg_feature_extraction.features import (
+    TimeDomainFeatures,
+    FrequencyDomainFeatures,
+    ComplexityFeatures,
+    ConnectivityFeatures,
+    NetworkFeatures,
+    CompositeFeatures,
+    DEFeatures,
+    MicrostateFeatures,
+    MicrostateAnalyzer,
+)
+from selective_feature_extraction import (
+    FEATURE_GROUPS,
+    FEATURE_TO_GROUP,
+    PRESETS,
     FeatureSelectionConfig,
-    MergedSegmentExtractor,
     apply_preset,
 )
 
-# Required columns supplied by the user (order preserved)
+# Supplement microstate group
+if 'microstate' not in FEATURE_GROUPS:
+    FEATURE_GROUPS['microstate'] = MicrostateFeatures.feature_names.copy()
+    for feat in MicrostateFeatures.feature_names:
+        FEATURE_TO_GROUP[feat] = 'microstate'
+
+
+# Required columns (all expected columns in output CSVs)
 REQUIRED_COLUMNS: List[str] = [
     "trial_ids",
     "segment_ids",
@@ -156,6 +186,27 @@ REQUIRED_COLUMNS: List[str] = [
 
 META_COLS: List[str] = REQUIRED_COLUMNS[:10]
 
+# Default timeout for feature recomputation (seconds)
+DEFAULT_FEATURE_TIMEOUT = 90
+# Number of retry attempts for timed-out features
+DEFAULT_RETRY_COUNT = 2
+
+
+@dataclass
+class MergedSegmentData:
+    """Merged segment data structure"""
+    eeg_data: np.ndarray
+    trial_ids: List[int]
+    segment_ids: List[int]
+    session_id: int
+    labels: List[int]
+    primary_label: int
+    start_time: float
+    end_time: float
+    total_time_length: float
+    merge_count: int
+    source_segments: List[str]
+
 
 def _subject_id_from_name(name: str) -> Optional[str]:
     """Extract subject id from subdirectory name like sub_1."""
@@ -175,42 +226,30 @@ def _candidate_h5_paths(input_dir: Path, subject_dir: Path) -> List[Path]:
     return candidates
 
 
-def _load_recomputed_df(
-    h5_path: Path,
-    tmp_out: Path,
-    merge_count: int,
-    preset: str,
-    microstate_segs: Optional[int],
-    n_jobs: Optional[int],
-    no_gpu: bool,
-    use_parallel: bool,
-) -> pd.DataFrame:
-    cfg = Config()
-    cfg.use_gpu = not no_gpu
-    selection_cfg = apply_preset(preset)
-    extractor = MergedSegmentExtractor(
-        config=cfg,
-        selection_config=selection_cfg,
-        merge_count=merge_count,
-        cross_trial=False,
-        n_jobs=n_jobs,
-        microstate_segments_per_trial=microstate_segs,
-    )
-    tmp_out.mkdir(parents=True, exist_ok=True)
-    df_new = extractor.process_h5_file(
-        str(h5_path), str(tmp_out), verbose=False, use_parallel=use_parallel
-    )
-    return df_new
-
-
 def _find_missing_columns(df: pd.DataFrame) -> List[str]:
+    """Find columns that are missing or have NaN values."""
     missing: List[str] = []
     for col in REQUIRED_COLUMNS:
+        if col in META_COLS:
+            continue  # Skip metadata columns
         if col not in df.columns:
             missing.append(col)
         else:
             if df[col].isna().any():
                 missing.append(col)
+    return missing
+
+
+def _find_missing_features_in_row(row: pd.Series) -> List[str]:
+    """Find feature columns that have NaN values in a specific row."""
+    missing: List[str] = []
+    for col in REQUIRED_COLUMNS:
+        if col in META_COLS:
+            continue
+        if col not in row.index:
+            missing.append(col)
+        elif pd.isna(row[col]):
+            missing.append(col)
     return missing
 
 
@@ -228,38 +267,164 @@ def _reorder_columns(df: pd.DataFrame) -> pd.DataFrame:
     return df[ordered + tail]
 
 
-def _fill_file(
-    csv_path: Path,
-    df_new_by_source: Dict[str, pd.Series],
-) -> Tuple[bool, List[str]]:
-    """
-    Fill missing/NaN columns in one CSV using recomputed features.
+def _get_groups_for_features(feature_names: List[str]) -> Set[str]:
+    """Get the set of feature groups required to compute the given features."""
+    groups = set()
+    for feat in feature_names:
+        if feat in FEATURE_TO_GROUP:
+            groups.add(FEATURE_TO_GROUP[feat])
+    return groups
 
-    Returns (changed, missing_cols_detected).
-    """
-    df_old = pd.read_csv(csv_path)
-    df_old = _ensure_columns(df_old)
-    missing_cols = _find_missing_columns(df_old)
-    if not missing_cols:
-        return False, []
 
-    changed = False
-    for idx, row in df_old.iterrows():
-        src_key = str(row["source_segments"])
-        if src_key not in df_new_by_source:
-            warnings.warn(f"source_segments not found in recomputed data: {src_key}")
-            continue
-        recomputed = df_new_by_source[src_key]
-        for col in missing_cols:
-            if col not in recomputed:
+class TargetedFeatureExtractor:
+    """Feature extractor that only computes specified features with longer timeout."""
+
+    def __init__(
+        self,
+        config: Config,
+        target_features: Set[str],
+        timeout_sec: int = DEFAULT_FEATURE_TIMEOUT,
+        retry_count: int = DEFAULT_RETRY_COUNT,
+    ):
+        self.config = config
+        self.target_features = target_features
+        self.timeout_sec = timeout_sec
+        self.retry_count = retry_count
+
+        # PSD computer
+        self.psd_computer = PSDComputer(
+            sampling_rate=config.sampling_rate,
+            use_gpu=config.use_gpu,
+            nperseg=config.nperseg,
+            noverlap=config.noverlap,
+            nfft=config.nfft
+        )
+
+        # Initialize only required feature computers
+        self.feature_computers: Dict[str, BaseFeature] = {}
+        required_groups = _get_groups_for_features(list(target_features))
+        all_feature_classes = FeatureRegistry.get_all_feature_classes()
+        for group_name in required_groups:
+            if group_name in all_feature_classes:
+                self.feature_computers[group_name] = all_feature_classes[group_name](config)
+
+    def _run_with_timeout(self, fn, timeout_sec: int, *args, **kwargs):
+        """Run function with timeout using ThreadPoolExecutor."""
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            future = executor.submit(fn, *args, **kwargs)
+            try:
+                return future.result(timeout=timeout_sec)
+            except FuturesTimeoutError:
+                raise TimeoutError("feature computation timed out")
+
+    def extract_features(
+        self,
+        eeg_data: np.ndarray,
+        microstate_analyzer: Optional[MicrostateAnalyzer] = None
+    ) -> Dict[str, Any]:
+        """Extract only the target features with retry mechanism."""
+        # Compute PSD once
+        psd_result = self.psd_computer.compute_psd(
+            eeg_data,
+            bands=self.config.freq_bands.get_all_bands()
+        )
+
+        all_features: Dict[str, Any] = {}
+
+        for group_name, computer in self.feature_computers.items():
+            # Filter to only features we need from this group
+            group_features = [f for f in computer.get_feature_names() if f in self.target_features]
+            if not group_features:
                 continue
-            if pd.isna(row[col]):
-                df_old.at[idx, col] = recomputed[col]
-                changed = True
-    if changed:
-        df_old = _reorder_columns(df_old)
-        df_old.to_csv(csv_path, index=False, encoding="utf-8")
-    return changed, missing_cols
+
+            for feat_name in group_features:
+                # Try multiple times with longer timeout
+                value = None
+                last_error = None
+
+                for attempt in range(self.retry_count + 1):
+                    try:
+                        if group_name == 'microstate':
+                            def _task():
+                                res = computer.compute(
+                                    eeg_data, psd_result=psd_result,
+                                    microstate_analyzer=microstate_analyzer
+                                )
+                                return res.get(feat_name, None)
+                        else:
+                            def _task():
+                                res = computer.compute(eeg_data, psd_result=psd_result)
+                                return res.get(feat_name, None)
+
+                        value = self._run_with_timeout(_task, self.timeout_sec)
+                        if value is not None:
+                            break
+                    except TimeoutError as e:
+                        last_error = f"Timeout (attempt {attempt + 1}/{self.retry_count + 1})"
+                        if attempt < self.retry_count:
+                            continue
+                    except Exception as e:
+                        last_error = str(e)
+                        break
+
+                if value is not None:
+                    all_features[feat_name] = value
+                else:
+                    if last_error:
+                        warnings.warn(f"Failed to compute '{feat_name}': {last_error}")
+
+        return all_features
+
+
+def _compute_microstate_template(
+    loader: EEGDataLoader,
+    microstate_segs: Optional[int],
+    verbose: bool = True
+) -> MicrostateAnalyzer:
+    """Generate microstate template from segments."""
+    if verbose:
+        if microstate_segs and microstate_segs > 0:
+            print(f"  Generating microstate template (sampling {microstate_segs} segments per trial)...")
+        else:
+            print("  Generating microstate template (using all segments)...")
+
+    analyzer = MicrostateAnalyzer(n_states=4)
+    all_peak_maps: List[np.ndarray] = []
+    n_segments_used = 0
+    n_trials = 0
+
+    trial_names = loader.get_trial_names()
+    for trial_name in trial_names:
+        segment_names = loader.get_segment_names(trial_name)
+        n_trials += 1
+
+        if microstate_segs and microstate_segs > 0 and len(segment_names) > microstate_segs:
+            rng = np.random.default_rng(seed=42 + n_trials)
+            selected_indices = rng.choice(len(segment_names), size=microstate_segs, replace=False)
+            selected_segment_names = [segment_names[i] for i in sorted(selected_indices)]
+        else:
+            selected_segment_names = segment_names
+
+        for seg_name in selected_segment_names:
+            segment = loader.get_segment(trial_name, seg_name)
+            data = segment.eeg_data
+            gfp = analyzer.compute_gfp(data)
+            peak_indices = analyzer.find_gfp_peaks(gfp)
+            peak_maps = data[:, peak_indices].T
+            if peak_maps.size > 0:
+                all_peak_maps.append(peak_maps)
+            n_segments_used += 1
+
+    if n_segments_used == 0 or len(all_peak_maps) == 0:
+        raise ValueError("No valid segment peak maps for microstate template generation")
+
+    combined_maps = np.vstack(all_peak_maps)
+    analyzer.centroids = analyzer._polarity_invariant_kmeans(combined_maps)
+
+    if verbose:
+        print(f"  Microstate template generated: {n_trials} trials, {n_segments_used} segments used")
+
+    return analyzer
 
 
 def _discover_subject_dirs(output_dir: Path) -> List[Path]:
@@ -271,8 +436,152 @@ def _discover_subject_dirs(output_dir: Path) -> List[Path]:
     return subject_dirs
 
 
+def _parse_source_segments(source_str: str) -> List[str]:
+    """Parse source_segments string like "['trial_0/seg_0', 'trial_0/seg_1']" """
+    try:
+        import ast
+        return ast.literal_eval(source_str)
+    except Exception:
+        return []
+
+
+def _load_segment_data(
+    loader: EEGDataLoader,
+    source_segments: List[str],
+    merge_count: int,
+) -> Optional[MergedSegmentData]:
+    """Load and merge segment data based on source_segments list."""
+    segments_to_merge = []
+
+    for src in source_segments:
+        parts = src.split('/')
+        if len(parts) != 2:
+            continue
+        trial_name, seg_name = parts
+        try:
+            seg = loader.get_segment(trial_name, seg_name)
+            segments_to_merge.append((trial_name, seg_name, seg))
+        except Exception:
+            return None
+
+    if not segments_to_merge:
+        return None
+
+    # Merge EEG data
+    eeg_arrays = [seg.eeg_data for _, _, seg in segments_to_merge]
+    merged_eeg = np.concatenate(eeg_arrays, axis=1)
+
+    trial_ids = [seg.trial_id for _, _, seg in segments_to_merge]
+    segment_ids = [seg.segment_id for _, _, seg in segments_to_merge]
+    labels = [seg.label for _, _, seg in segments_to_merge]
+    src_segments = [f"{t}/{s}" for t, s, _ in segments_to_merge]
+
+    first_seg = segments_to_merge[0][2]
+    last_seg = segments_to_merge[-1][2]
+    total_time = sum(seg.time_length for _, _, seg in segments_to_merge)
+
+    return MergedSegmentData(
+        eeg_data=merged_eeg,
+        trial_ids=trial_ids,
+        segment_ids=segment_ids,
+        session_id=first_seg.session_id,
+        labels=labels,
+        primary_label=labels[0],
+        start_time=first_seg.start_time,
+        end_time=last_seg.end_time,
+        total_time_length=total_time,
+        merge_count=len(segments_to_merge),
+        source_segments=src_segments,
+    )
+
+
+def _fill_csv_file(
+    csv_path: Path,
+    loader: EEGDataLoader,
+    config: Config,
+    merge_count: int,
+    microstate_analyzer: Optional[MicrostateAnalyzer],
+    timeout_sec: int,
+    retry_count: int,
+    verbose: bool,
+) -> Tuple[bool, List[str], List[str]]:
+    """
+    Fill missing features in a single CSV file.
+
+    Returns:
+        (changed, missing_cols_before, still_missing_cols)
+    """
+    df = pd.read_csv(csv_path)
+    df = _ensure_columns(df)
+
+    # Check if there are any missing features
+    missing_cols = _find_missing_columns(df)
+    if not missing_cols:
+        return False, [], []
+
+    if verbose:
+        print(f"    {csv_path.name}: {len(missing_cols)} missing features: {missing_cols[:5]}{'...' if len(missing_cols) > 5 else ''}")
+
+    changed = False
+    still_missing = set(missing_cols)
+
+    for idx, row in df.iterrows():
+        row_missing = _find_missing_features_in_row(row)
+        if not row_missing:
+            continue
+
+        # Get source segments and load data
+        src_str = str(row.get("source_segments", "[]"))
+        source_segs = _parse_source_segments(src_str)
+        if not source_segs:
+            warnings.warn(f"Cannot parse source_segments: {src_str}")
+            continue
+
+        merged_data = _load_segment_data(loader, source_segs, merge_count)
+        if merged_data is None:
+            warnings.warn(f"Cannot load segment data for: {src_str}")
+            continue
+
+        # Create targeted extractor for only missing features
+        target_features = set(row_missing)
+        extractor = TargetedFeatureExtractor(
+            config=config,
+            target_features=target_features,
+            timeout_sec=timeout_sec,
+            retry_count=retry_count,
+        )
+
+        # Extract features
+        try:
+            computed = extractor.extract_features(
+                merged_data.eeg_data,
+                microstate_analyzer=microstate_analyzer
+            )
+        except Exception as e:
+            warnings.warn(f"Feature extraction error: {e}")
+            computed = {}
+
+        # Fill in computed values
+        for feat_name, value in computed.items():
+            if pd.isna(row[feat_name]) and value is not None:
+                df.at[idx, feat_name] = value
+                changed = True
+                if feat_name in still_missing:
+                    still_missing.discard(feat_name)
+
+    # Save updated CSV
+    if changed:
+        df = _reorder_columns(df)
+        df.to_csv(csv_path, index=False, encoding="utf-8")
+
+    return changed, missing_cols, list(still_missing)
+
+
 def rebuild_summary(output_dir: Path) -> None:
+    """Rebuild all_merged_features.csv from individual CSVs."""
     csv_files = sorted(output_dir.glob("sub_*/merged_segment_*.csv"))
+    if not csv_files:
+        csv_files = sorted(output_dir.glob("merged_segment_*.csv"))
     if not csv_files:
         return
     frames = [pd.read_csv(p) for p in csv_files]
@@ -287,25 +596,47 @@ def rebuild_summary(output_dir: Path) -> None:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Fill missing EEG features in merged CSVs")
-    parser.add_argument("--input-h5-dir", type=str, required=True, help="Directory containing source HDF5 files")
-    parser.add_argument("--output-dir", type=str, required=True, help="Directory with merged_segment CSV outputs")
+    parser = argparse.ArgumentParser(
+        description="Fill missing EEG features in merged CSVs with targeted recomputation"
+    )
+    parser.add_argument(
+        "--input-h5-dir", type=str, required=True,
+        help="Directory containing source HDF5 files"
+    )
+    parser.add_argument(
+        "--output-dir", type=str, required=True,
+        help="Directory with merged_segment CSV outputs"
+    )
     parser.add_argument("--merge-count", type=int, default=1, help="Merge count used originally")
     parser.add_argument("--preset", type=str, default="basic", help="Preset used originally")
     parser.add_argument("--microstate-segs", type=int, default=20, help="Microstate segments per trial")
-    parser.add_argument("--n-jobs", type=int, default=None, help="Parallel jobs for recomputation")
-    parser.add_argument("--no-parallel", action="store_true", help="Force sequential recomputation")
+    parser.add_argument(
+        "--timeout", type=int, default=DEFAULT_FEATURE_TIMEOUT,
+        help=f"Timeout per feature in seconds (default: {DEFAULT_FEATURE_TIMEOUT})"
+    )
+    parser.add_argument(
+        "--retry", type=int, default=DEFAULT_RETRY_COUNT,
+        help=f"Number of retry attempts for timed-out features (default: {DEFAULT_RETRY_COUNT})"
+    )
     parser.add_argument("--no-gpu", action="store_true", help="Disable GPU during recomputation")
-    parser.add_argument("--keep-temp", action="store_true", help="Keep temporary recomputed CSVs")
     parser.add_argument("--skip-summary", action="store_true", help="Do not rebuild all_merged_features.csv")
+    parser.add_argument("-v", "--verbose", action="store_true", help="Verbose output")
     args = parser.parse_args()
 
     input_dir = Path(args.input_h5_dir).resolve()
     output_dir = Path(args.output_dir).resolve()
-    use_parallel = not args.no_parallel
 
+    print("=" * 60)
+    print("Fill Missing Features - Targeted Recomputation")
+    print("=" * 60)
+    print(f"Input H5 directory: {input_dir}")
+    print(f"Output directory:   {output_dir}")
+    print(f"Timeout per feature: {args.timeout}s")
+    print(f"Retry attempts: {args.retry}")
+    print("-" * 60)
+
+    # Discover subject directories
     subjects = _discover_subject_dirs(output_dir)
-    # Fallback: if no subdirectories, but CSVs exist directly in output_dir, treat it as one subject
     if not subjects and any(output_dir.glob("merged_segment_*.csv")):
         subjects = [output_dir]
 
@@ -313,64 +644,92 @@ def main() -> None:
         print(f"No merged_segment CSVs found under {output_dir}")
         sys.exit(1)
 
-    total_changed = 0
+    print(f"Found {len(subjects)} subject(s) to process")
+
+    total_files_changed = 0
+    total_features_fixed = 0
+
     for subject_dir in subjects:
+        # Find matching H5 file
         candidates = _candidate_h5_paths(input_dir, subject_dir)
         h5_path = next((c for c in candidates if c.exists()), None)
 
         if h5_path is None:
-            # If no direct match, but there is exactly one H5 in input_dir, use it.
             h5_files = list(input_dir.glob("*.h5"))
             if len(h5_files) == 1:
                 h5_path = h5_files[0]
             else:
-                print(f"Skipping {subject_dir.name}: H5 file not found in {input_dir}")
+                print(f"Skipping {subject_dir.name}: H5 file not found")
                 continue
 
         print(f"\nProcessing {subject_dir.name} using {h5_path.name}")
-        tmp_out = subject_dir / "_tmp_recompute"
-        df_new = _load_recomputed_df(
-            h5_path=h5_path,
-            tmp_out=tmp_out,
-            merge_count=args.merge_count,
-            preset=args.preset,
-            microstate_segs=args.microstate_segs,
-            n_jobs=args.n_jobs,
-            no_gpu=args.no_gpu,
-            use_parallel=use_parallel,
-        )
-        if df_new.empty:
-            print("  Recomputed DataFrame is empty, skipping.")
-            continue
 
-        # Index recomputed rows by source_segments string for quick lookup
-        df_new = _ensure_columns(df_new)
-        df_new = _reorder_columns(df_new)
-        df_new_by_source: Dict[str, pd.Series] = {
-            str(row["source_segments"]): row for _, row in df_new.iterrows()
-        }
+        # Load data
+        loader = EEGDataLoader(str(h5_path))
+        subject_info = loader.get_subject_info()
 
-        subject_changed = 0
-        csv_files = sorted(subject_dir.glob("merged_segment_*.csv"))
-        for csv_path in csv_files:
-            changed, missing_cols = _fill_file(csv_path, df_new_by_source)
-            if changed:
-                subject_changed += 1
-                print(f"  Filled {csv_path.name}; columns fixed: {missing_cols}")
-        total_changed += subject_changed
+        # Create config
+        config = Config()
+        config.use_gpu = not args.no_gpu
+        config.update_from_electrode_names(subject_info.channel_names)
+        config.sampling_rate = subject_info.sampling_rate
 
-        if not args.keep_temp and tmp_out.exists():
-            import shutil
-
+        # Generate microstate template if needed
+        microstate_analyzer = None
+        selection_cfg = apply_preset(args.preset)
+        if 'microstate' in selection_cfg.get_required_groups():
             try:
-                shutil.rmtree(tmp_out)
-            except Exception:
-                warnings.warn(f"Failed to remove temp directory: {tmp_out}")
+                microstate_analyzer = _compute_microstate_template(
+                    loader, args.microstate_segs, verbose=args.verbose
+                )
+            except Exception as e:
+                warnings.warn(f"Failed to generate microstate template: {e}")
 
+        # Process each CSV file
+        csv_files = sorted(subject_dir.glob("merged_segment_*.csv"))
+        subject_changed = 0
+        subject_features_fixed = 0
+
+        if args.verbose:
+            csv_iter = tqdm(csv_files, desc=f"  Processing {subject_dir.name}")
+        else:
+            csv_iter = csv_files
+
+        for csv_path in csv_iter:
+            try:
+                changed, missing_before, still_missing = _fill_csv_file(
+                    csv_path=csv_path,
+                    loader=loader,
+                    config=config,
+                    merge_count=args.merge_count,
+                    microstate_analyzer=microstate_analyzer,
+                    timeout_sec=args.timeout,
+                    retry_count=args.retry,
+                    verbose=args.verbose,
+                )
+                if changed:
+                    subject_changed += 1
+                    features_fixed = len(missing_before) - len(still_missing)
+                    subject_features_fixed += features_fixed
+                    if args.verbose and still_missing:
+                        print(f"      Still missing after retry: {still_missing}")
+            except Exception as e:
+                warnings.warn(f"Error processing {csv_path.name}: {e}")
+                if args.verbose:
+                    traceback.print_exc()
+
+        total_files_changed += subject_changed
+        total_features_fixed += subject_features_fixed
+        print(f"  {subject_dir.name}: {subject_changed} files updated, {subject_features_fixed} features fixed")
+
+    # Rebuild summary
     if not args.skip_summary:
         rebuild_summary(output_dir)
 
-    print(f"\nDone. Files updated: {total_changed}")
+    print("\n" + "=" * 60)
+    print(f"Done. Total files updated: {total_files_changed}")
+    print(f"Total features fixed: {total_features_fixed}")
+    print("=" * 60)
 
 
 if __name__ == "__main__":
